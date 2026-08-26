@@ -80,11 +80,15 @@ and check:
 - Open "Debug Log" from the top-right of the record screen after a capture.
   **`[eyes-on]`** do the "frame accepted" lines look roughly 3 seconds apart
   by their timestamps, and does "Copy" put the whole log on the clipboard
-  (paste it somewhere to confirm)?
-- **`[device]`** `StorageLocator.root` backup exclusion isn't visually
-  checkable in-app — if you want this verified, it needs a Mac (Console.app
-  or a Finder inspection of the sideloaded app's container), so leave it
-  pending until Mac access returns unless you have another way to check it
+  (paste it somewhere to confirm)? If the log shows nothing but "frame gated
+  out" lines with no "frame accepted" lines visible, that's the 2000-line
+  ring buffer overflowing (only tuned for a 30fps camera — if the phone's
+  `.hd1920x1080` preset actually runs at 60fps, a 60s capture produces ~3600
+  gated-out lines and evicts the earliest accepted ones) rather than a
+  capture failure — report that distinction if you see it
+- **`[device]`** `StorageLocator.root` backup exclusion: check the very first
+  line of the Debug Log after launch — `[Storage] root excluded from backup:
+  true` (logged once in `StudyLapseApp.init()`). No Mac needed
 - Not a listed criterion but worth a glance: no crash/hang during or right
   after the 60s capture
 
@@ -167,13 +171,20 @@ Not blocking, but constraining while there is no Mac:
     ~0.667s) but a raw `AVAssetReaderTrackOutput` sample count read back 24,
     not 20. Both authoritative checks (the writer's own successful-append
     count, and the independently re-read asset duration) agreed on 20, so
-    this is very likely HEVC B-frame reordering padding the raw sample table
-    at the codec level — not a `CaptureController` gating bug. Relaxed the
-    raw-sample-count assertion to a lower bound (`>= 20`) rather than exact
-    equality; `frameCount` + `duration` remain the authoritative "exactly 20
-    frames" proof. `CaptureControllerTests.swift`. If this resurfaces with a
-    real device file once Mac access returns, worth re-examining with
-    `ffprobe` or similar rather than assuming the same explanation holds.
+    this is not a `CaptureController` gating bug — but the *root cause of the
+    extra 4 raw samples is not confirmed*. (An earlier version of this note
+    guessed "HEVC B-frame reordering" — that explanation is wrong: reordering
+    changes decode order, not sample count, and should not be trusted; treat
+    it as unexplained, not diagnosed.) Relaxed the raw-sample-count assertion
+    to a lower bound (`>= 20`) rather than exact equality, and added a
+    timestamp-range check: the test now asserts every raw sample's PTS falls
+    within the 20 accepted frames' own range (`<= 19/30 + 0.01`), which would
+    fail if the writer were genuinely emitting frames beyond what was
+    appended rather than some benign container-level duplication. `frameCount`
+    + `duration` remain the authoritative "exactly 20 frames" proof.
+    `CaptureControllerTests.swift`. If this resurfaces against a real device
+    file once Mac access returns, re-examine with `ffprobe` or similar rather
+    than assuming either explanation above.
 
 ---
 
