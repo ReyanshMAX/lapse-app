@@ -125,6 +125,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
       - name: Build for simulator (unsigned)
         run: |
           xcodebuild \
@@ -165,6 +169,10 @@ free-Apple-ID sideloader signs on Windows. Add to `ci.yml`:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
       - name: Archive unsigned
         run: |
           xcodebuild \

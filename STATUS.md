@@ -63,7 +63,11 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
-None.
+- docs/SETUP.md's `app` and `ipa` CI job snippets were each missing their own
+  "Generate project" (`xcodegen generate`) step. Each job runs on a fresh
+  runner with no state shared from the `simulator` job, so without it there is
+  no `.xcodeproj` to build/archive. Added the step to both jobs in
+  `.github/workflows/ci.yml` and updated docs/SETUP.md to match.
 
 ---
 
