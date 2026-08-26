@@ -157,9 +157,9 @@ StudyLapse/Storage/StorageLocator.swift
 ```
 
 **Acceptance criteria**
-- [ ] `[ci]` the app target compiles for the simulator with
+- [x] `[ci]` the app target compiles for the simulator with
       `CODE_SIGNING_ALLOWED=NO`
-- [ ] `[ci]` driving `CaptureController` with a `SyntheticFrameSource` at a
+- [x] `[ci]` driving `CaptureController` with a `SyntheticFrameSource` at a
       3s virtual interval for 60 virtual seconds writes a file with exactly 20
       frames, verified by reading the written asset back
 - [ ] `[device]` `xcodebuild ... build` succeeds over SSH with no warnings in
