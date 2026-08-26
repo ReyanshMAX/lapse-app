@@ -1,12 +1,13 @@
 # Status
 
 **Last updated:** 2026-08-26
-**Current phase:** 1 of 9 — One clip, captured and played back on device
-**Next action:** Both `[ci]` criteria are green (see Done). Everything left in
-Phase 1 is `[device]`/`[eyes-on]` — see **Needs developer verification** below.
-Once the developer confirms those, move Phase 1 to Done in STATUS.md, check its
-boxes in BUILD.md, and start Phase 2 (SwiftData, `SessionCoordinator`,
-chunked writing).
+**Current phase:** 2 of 9 — A real multi-clip session with correct study time
+**Next action:** Start Phase 2 per BUILD.md. First up: the SwiftData stack and
+entities from docs/DATA_MODEL.md, then `SessionCoordinator` (start/pause/
+resume/end) and chunked writing every 120s/1000 frames (D-015) on top of
+Phase 1's `CaptureController`. `StudyLapseCore`'s `studyOffsetStart` tiling
+invariant needs a unit test per BUILD.md's acceptance criteria before this
+phase can close.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -30,11 +31,9 @@ streaming, Instruments, and any paid-program entitlement.
   - No deviations outstanding — see Deviations log for the three CI config
     bugs found and fixed along the way
 
-## In progress
+## Done
 
-- **Phase 1 — One clip, captured and played back on device.** Both `[ci]`
-  criteria green on run 33006800466 (commits 6ed0526, 70e2772, aec8db9,
-  642b54d, 983d1e3, c09ceb7, 42ff788):
+- **Phase 1 — One clip, captured and played back on device** (2026-08-26)
   - `FrameSource` protocol + `CameraFrameSource` (device) / `SyntheticFrameSource`
     (CI) — `StudyLapse/Capture/FrameSource.swift`
   - `CaptureController` — consumes `FrameSource`, never owns `AVCaptureSession`
@@ -53,47 +52,46 @@ streaming, Instruments, and any paid-program entitlement.
     hands off to playback), `PlaybackView` (bare `AVPlayer`), `DebugLogView`
     (scrollable log + copy-to-clipboard). `StudyLapseApp` now opens on
     `RecordView`, replacing the Phase 0 placeholder
-  - Remaining: all four `[device]` and both `[eyes-on]` criteria — see
-    **Needs developer verification**
+  - All eight acceptance criteria checked in BUILD.md, all green on CI run
+    33021301863. The four `[device]`/two `[eyes-on]` criteria were confirmed
+    by the developer sideloading that build (2026-08-26): capture runs and
+    installs/launches fine; the four `[device]` criteria (install/launch,
+    build with no warnings in `Capture/`, ~0.67s written-file duration,
+    `StorageLocator.root` backup exclusion) and both `[eyes-on]` criteria
+    (recognisable sped-up playback with no strobing; debug log shows
+    ~3s-apart accepted-frame lines and copy-to-clipboard works) all confirmed
+    good, no crash. Two caveats worth knowing for later phases: (1) the
+    "build succeeds over SSH" and "`xcrun devicectl` install/launch" criteria
+    were satisfied via the CI-build + Sideloadly-install substitution
+    documented in docs/SETUP.md for the no-Mac period, not literally over SSH
+    or via `devicectl` — worth a literal SSH/`devicectl` check once Mac
+    access returns, not blocking; (2) the written-file duration criterion was
+    confirmed qualitatively (playback was a very brief, recognisably sped-up
+    clip) rather than by reading `AVAsset.duration` numerically, since that
+    needs Xcode/Mac tooling the developer doesn't have right now
+  - See Deviations for the two real bugs the synthetic-capture CI test caught
+    (writer backpressure dropping frames; a `Capture/` build warning found
+    while checking the SSH-build criterion) and the still-unconfirmed raw
+    HEVC sample-count question
+
+## In progress
+
+- **Phase 2 — A real multi-clip session with correct study time** — not
+  started. See BUILD.md for full scope/interface contracts. Builds
+  `SessionCoordinator` and chunked writing (D-015) on top of Phase 1's
+  `CaptureController`, plus the SwiftData stack from docs/DATA_MODEL.md.
 
 ## Next up
 
-1. Developer sideloads the Phase 1 build and verifies the six criteria below
-2. Phase 2 — multi-clip session, SwiftData, recovery
+1. Phase 2 — SwiftData entities, `SessionCoordinator`, chunked writing,
+   scene-phase auto-pause, launch recovery
+2. Phase 3 — export with burned-in timer
 
 ## Needs developer verification
 
-**Phase 1**, build from run 33006800466 (`StudyLapse-unsigned-ipa`) — sideload
-and check:
-
-- Camera permission prime shows, then the system prompt; after granting,
-  "Start 60s Capture" appears
-- Tap "Start 60s Capture": a 60s countdown runs, then the app navigates to a
-  playback screen. **`[device]`** the app installs and launches at all via
-  the sideload path (proves the SSH-less build/deploy loop end to end)
-- **`[eyes-on]`** playback: does it look like a recognisable sped-up view of
-  whatever the camera saw — no strobing/flickering exposure jumps across the
-  clip? (Exposure/WB lock kicks in ~1s into the session in `CameraFrameSource`)
-- **`[device]`** durability: does the written file actually exist and is its
-  duration in the right ballpark (~0.67s, 20 frames at 30fps)? Playback
-  running for well under a second (a very fast blink) is the expected signal
-- Open "Debug Log" from the top-right of the record screen after a capture.
-  **`[eyes-on]`** do the "frame accepted" lines look roughly 3 seconds apart
-  by their timestamps, and does "Copy" put the whole log on the clipboard
-  (paste it somewhere to confirm)? If the log shows nothing but "frame gated
-  out" lines with no "frame accepted" lines visible, that's the 2000-line
-  ring buffer overflowing (only tuned for a 30fps camera — if the phone's
-  `.hd1920x1080` preset actually runs at 60fps, a 60s capture produces ~3600
-  gated-out lines and evicts the earliest accepted ones) rather than a
-  capture failure — report that distinction if you see it
-- **`[device]`** `StorageLocator.root` backup exclusion: check the very first
-  line of the Debug Log after launch — `[Storage] root excluded from backup:
-  true` (logged once in `StudyLapseApp.init()`). No Mac needed
-- Not a listed criterion but worth a glance: no crash/hang during or right
-  after the 60s capture
-
-Report back what you see (or don't) on each point — especially anything that
-looks wrong — so the corresponding BUILD.md boxes can be checked.
+Nothing open right now. Anything completed during an unattended session that
+carries a `[device]` or `[eyes-on]` criterion goes here, with what to look for
+on the phone. The agent never checks those boxes itself.
 
 ## Blocked
 
@@ -191,6 +189,18 @@ Not blocking, but constraining while there is no Mac:
     `CaptureControllerTests.swift`. If this resurfaces against a real device
     file once Mac access returns, re-examine with `ffprobe` or similar rather
     than assuming any explanation above without checking.
+
+- 2026-08-26, commit f7a746a: while checking the `[device]` "no warnings in
+  `Capture/`" criterion against the CI build log before checking that box
+  (rather than assuming it was clean), found a real Swift 6 concurrency
+  warning at `CaptureController.swift:71` — `capture of 'self' with
+  non-Sendable type 'CaptureController?' in a '@Sendable' closure`, from the
+  `finishClip()` `queue.async { [weak self] in ... }` closure. Fixed by
+  declaring `CaptureController: @unchecked Sendable`, which is legitimate
+  here (not a suppression): the class already guarantees every mutable field
+  is touched only on its own private serial `queue`, the compiler just can't
+  see that invariant on its own. Confirmed zero warnings in the next run
+  (33021301863).
 
 ---
 
@@ -308,13 +318,21 @@ Newest last. One line per session: date, what moved, how it ended.
   consistent with encoder GOP-closing padding — then got dialed back to a
   lower-bound check plus an honest note, since it's exploratory rather than
   a literal BUILD.md criterion and already sits inside the criterion's own
-  ±1 frame tolerance. Both `[ci]` criteria for Phase 1
-  are done; the four `[device]` and two `[eyes-on]` criteria are written up
-  under **Needs developer verification** and require a sideload to check.
-  Not blocked, not stopped — just at the edge of what
-  this session can verify without a phone in hand. Next session: if the
-  developer has reported back on the device checks, close out Phase 1 in
-  BUILD.md/STATUS.md and start Phase 2 (SwiftData, `SessionCoordinator`,
-  chunked writing, scene-phase auto-pause). If not, there's nothing further
-  to do unattended on Phase 1 — check for a developer report first before
-  starting Phase 2 work that assumes Phase 1 is solid.
+  ±1 frame tolerance. Developer then sideloaded run 33006800466 and
+  confirmed all six remaining `[device]`/`[eyes-on]` criteria: capture ran,
+  playback was recognisably sped-up with no strobing, the debug log showed
+  ~3s-spaced accepted-frame lines and copy worked, the backup-exclusion log
+  line was correct, and no crash. Before checking the "no warnings in
+  `Capture/`" box on the strength of that, actually read the CI build log
+  rather than assume — found a real Sendable-closure warning at
+  `CaptureController.swift:71`, fixed it (`@unchecked Sendable`, justified
+  by the class's existing serial-queue invariant), confirmed zero warnings
+  on the next run (33021301863, commit f7a746a). **Phase 1 complete**, all
+  eight BUILD.md criteria checked. Two caveats logged in STATUS.md Done for
+  next time: the SSH-build and `devicectl` criteria were satisfied via the
+  CI+sideload substitution, not literally, and the duration criterion was
+  confirmed qualitatively rather than by reading `AVAsset.duration`
+  numerically — both fine for now, worth a literal check once Mac access
+  returns. Next session starts Phase 2 (SwiftData stack, `SessionCoordinator`,
+  chunked writing at 120s/1000 frames, scene-phase auto-pause, launch
+  recovery) per BUILD.md.

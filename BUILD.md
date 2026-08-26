@@ -162,16 +162,16 @@ StudyLapse/Storage/StorageLocator.swift
 - [x] `[ci]` driving `CaptureController` with a `SyntheticFrameSource` at a
       3s virtual interval for 60 virtual seconds writes a file with exactly 20
       frames, verified by reading the written asset back
-- [ ] `[device]` `xcodebuild ... build` succeeds over SSH with no warnings in
+- [x] `[device]` `xcodebuild ... build` succeeds over SSH with no warnings in
       `Capture/`
-- [ ] `[device]` `xcrun devicectl device install app` and `process launch`
+- [x] `[device]` `xcrun devicectl device install app` and `process launch`
       put the app on the phone and start it
-- [ ] `[device]` after a 60s capture at a 3s interval, the written file exists
+- [x] `[device]` after a 60s capture at a 3s interval, the written file exists
       and `AVAsset.duration` is 20 frames / 30fps ≈ 0.67s (±1 frame)
-- [ ] `[device]` `StorageLocator.root` has `isExcludedFromBackup == true`
-- [ ] `[eyes-on]` playback shows a recognisable sped-up view of the scene, with
+- [x] `[device]` `StorageLocator.root` has `isExcludedFromBackup == true`
+- [x] `[eyes-on]` playback shows a recognisable sped-up view of the scene, with
       no exposure strobing across the clip
-- [ ] `[eyes-on]` the debug log screen shows accepted-frame lines roughly 3s
+- [x] `[eyes-on]` the debug log screen shows accepted-frame lines roughly 3s
       apart and can be copied out for pasting back into a session
 
 **Depends on:** Phase 0
