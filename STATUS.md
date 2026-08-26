@@ -172,19 +172,25 @@ Not blocking, but constraining while there is no Mac:
     not 20. Both authoritative checks (the writer's own successful-append
     count, and the independently re-read asset duration) agreed on 20, so
     this is not a `CaptureController` gating bug — but the *root cause of the
-    extra 4 raw samples is not confirmed*. (An earlier version of this note
-    guessed "HEVC B-frame reordering" — that explanation is wrong: reordering
-    changes decode order, not sample count, and should not be trusted; treat
-    it as unexplained, not diagnosed.) Relaxed the raw-sample-count assertion
-    to a lower bound (`>= 20`) rather than exact equality, and added a
-    timestamp-range check: the test now asserts every raw sample's PTS falls
-    within the 20 accepted frames' own range (`<= 19/30 + 0.01`), which would
-    fail if the writer were genuinely emitting frames beyond what was
-    appended rather than some benign container-level duplication. `frameCount`
-    + `duration` remain the authoritative "exactly 20 frames" proof.
+    extra 4 raw samples is not fully confirmed*. (An earlier version of this
+    note guessed "HEVC B-frame reordering" — that explanation is wrong:
+    reordering changes decode order, not sample count. Don't trust it.)
+    Relaxed the raw-sample-count assertion to a lower bound (`>= 20`) rather
+    than exact equality. A follow-up run (33005802165) added a stricter
+    timestamp-range assertion to probe further and got one real data point
+    before being dialed back: the furthest raw sample's PTS was exactly
+    `20/30`s — one full frame (1/30s) beyond the last real append at `19/30`s.
+    That's consistent with the HEVC encoder padding a closing frame at
+    `finishWriting()` to satisfy its GOP structure (`AVVideoMaxKeyFrameIntervalKey:
+    30` with only 20 frames written is less than one full GOP) — a real,
+    plausible mechanism, but still not confirmed by inspecting the actual
+    frame content. Either way it sits inside BUILD.md's own "±1 frame"
+    tolerance on the device duration criterion, so it doesn't block Phase 1.
+    `frameCount` + `duration` remain the authoritative "exactly 20 frames"
+    proof; the raw-sample read is a lower-bound sanity check only.
     `CaptureControllerTests.swift`. If this resurfaces against a real device
     file once Mac access returns, re-examine with `ffprobe` or similar rather
-    than assuming either explanation above.
+    than assuming any explanation above without checking.
 
 ---
 
@@ -286,13 +292,26 @@ Newest last. One line per session: date, what moved, how it ended.
 - 2026-08-26 — Phase 1: pushed `FrameSource`/`CameraFrameSource`/
   `SyntheticFrameSource`, `CaptureController`, `DebugLog`, `StorageLocator`
   (commit 6ed0526); the synthetic-capture CI test failed twice on real bugs
-  (writer backpressure dropping frames, then a HEVC raw-sample-count quirk —
-  both fixed, see Deviations) before going green as commits 70e2772 and
+  (writer backpressure dropping frames, then a HEVC raw-sample-count
+  question — see Deviations) before going green as commits 70e2772 and
   aec8db9. Pushed the minimal Record/Playback/DebugLog screens on top
-  (commit 642b54d) — run 33004332059 green on all four jobs. Both `[ci]`
-  criteria for Phase 1 are done; the four `[device]` and two `[eyes-on]`
-  criteria are written up under **Needs developer verification** and require
-  a sideload to check. Not blocked, not stopped — just at the edge of what
+  (commit 642b54d) — run 33004332059 green on all four jobs. Checked off
+  Phase 1's two `[ci]` criteria and wrote up the remaining `[device]`/
+  `[eyes-on]` ones under Needs developer verification (commit 983d1e3).
+  A second-opinion pass caught a wrong root-cause guess in that Deviations
+  note ("B-frame reordering" doesn't fit the mechanism) and two gaps in the
+  verification writeup — fixed the explanation, added backup-exclusion
+  logging at launch, and added a debug-log-overflow caveat (commit c09ceb7).
+  Chasing the sample-count question one step further with a stricter test
+  assertion (same commit) turned red with a real, useful data point — the
+  extra raw samples sit exactly one frame past the last real append,
+  consistent with encoder GOP-closing padding — then got dialed back to a
+  lower-bound check plus an honest note, since it's exploratory rather than
+  a literal BUILD.md criterion and already sits inside the criterion's own
+  ±1 frame tolerance. Both `[ci]` criteria for Phase 1
+  are done; the four `[device]` and two `[eyes-on]` criteria are written up
+  under **Needs developer verification** and require a sideload to check.
+  Not blocked, not stopped — just at the edge of what
   this session can verify without a phone in hand. Next session: if the
   developer has reported back on the device checks, close out Phase 1 in
   BUILD.md/STATUS.md and start Phase 2 (SwiftData, `SessionCoordinator`,
