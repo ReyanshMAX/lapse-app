@@ -15,8 +15,14 @@ session if one is. Everything else hangs off a tab bar with Record and Library.
 
 ## Design tokens
 
-Dark only. Background `#0A0A0B`. Surface `#161618`. Primary text `#F5F5F7`.
-Secondary text `#8A8A8E`. Accent `#FF6B4A`. Recording indicator `#FF3B30`.
+Dark only, "cold ink" direction — navy-black rather than true black, with a
+single desaturated icy-blue accent reserved for actionable elements only
+(buttons, active states, tag chips), so it never competes with the recording
+indicator as the app's one saturated color.
+
+Background `#0A0D13`. Surface `#12161F`. Surface 2 (nested/elevated surfaces)
+`#1A2029`. Primary text `#EDEFF4`. Secondary text `#7D8494`. Accent `#6FA3D9`.
+Recording indicator `#FF3B30` — unchanged.
 Type: SF Pro Text for UI, SF Mono for all timer and duration displays. Corner
 radius 14. Spacing scale 4/8/12/16/24/32.
 
