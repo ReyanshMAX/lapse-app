@@ -64,20 +64,20 @@ StudyLapseCore/Sources/StudyLapseCore/
 ```
 
 **Acceptance criteria**
-- [ ] `[ci]` `swift test --package-path StudyLapseCore` passes on a macOS runner
-- [ ] `[ci]` a session of clip durations [120s, 300s, 60s] reports 480s of study
+- [x] `[ci]` `swift test --package-path StudyLapseCore` passes on a macOS runner
+- [x] `[ci]` a session of clip durations [120s, 300s, 60s] reports 480s of study
       time
-- [ ] `[ci]` `dayKey` for 02:30 with cutoff hour 4 returns the previous date, and
+- [x] `[ci]` `dayKey` for 02:30 with cutoff hour 4 returns the previous date, and
       `closeDeadline` lands at 04:00 the following day
-- [ ] `[ci]` `minimumSpeed(interval: 3, fps: 30)` returns 90, and a fit-to-15s
+- [x] `[ci]` `minimumSpeed(interval: 3, fps: 30)` returns 90, and a fit-to-15s
       request on a 9-hour session clamps to that floor
-- [ ] `[ci]` `TagRangeMath.validate` holds after any random sequence of split,
+- [x] `[ci]` `TagRangeMath.validate` holds after any random sequence of split,
       merge, and resize operations (property test, ≥1000 cases)
-- [ ] `[ci]` no import of SwiftData, AVFoundation, SwiftUI, or UIKit anywhere in
+- [x] `[ci]` no import of SwiftData, AVFoundation, SwiftUI, or UIKit anywhere in
       the package — assert with a grep step in CI
-- [ ] `[ci]` `xcodegen generate` followed by a simulator build succeeds
-- [ ] `[ci]` the `ipa` job uploads a `StudyLapse.ipa` artifact
-- [ ] `[device]` that artifact sideloads with a free Apple ID and launches on the
+- [x] `[ci]` `xcodegen generate` followed by a simulator build succeeds
+- [x] `[ci]` the `ipa` job uploads a `StudyLapse.ipa` artifact
+- [x] `[device]` that artifact sideloads with a free Apple ID and launches on the
       phone showing the placeholder view — this proves the whole delivery
       pipeline before any real code depends on it
 
