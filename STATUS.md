@@ -2,11 +2,12 @@
 
 **Last updated:** 2026-08-26
 **Current phase:** 0 of 9 — Core logic, provable without a Mac
-**Next action:** `git add` the four uncommitted `StudyLapseCore` math files
-(`DayBoundary.swift`, `Formatters.swift`, `TagRangeMath.swift`, `TimeAxis.swift`
-+ their tests) and the further-hardened `.github/workflows/ci.yml` (dynamic
-simulator lookup, see Deviations), commit, push, then `gh run watch` and confirm
-all four CI jobs actually go green — none of this has been through a CI run yet.
+**Next action:** Every `[ci]` criterion in Phase 0 is now confirmed green (run
+32997397929). The only thing left in the phase is the `[device]` criterion —
+sideload the `StudyLapse-unsigned-ipa` artifact from that run with a free
+Apple ID (docs/SETUP.md) and confirm the placeholder view launches. That is a
+developer action, not an agent one — see Needs developer verification. Once
+confirmed, check that box, mark Phase 0 Done, and start Phase 1.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -18,8 +19,9 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Done
 
-Nothing yet — no phase has a confirmed green CI run behind it. Spec suite
-generated 2026-08-24.
+Nothing fully closed yet — Phase 0's last criterion (`[device]` sideload) is
+still open. But as of run 32997397929 (2026-08-26, commit 6296a00), all `[ci]`
+work for Phase 0 is implemented, pushed, and confirmed green.
 
 ## In progress
 
@@ -27,33 +29,26 @@ generated 2026-08-24.
   - [x] Repo layout, `.gitignore`, `project.yml` — committed (1884355)
   - [x] `.github/workflows/ci.yml` with the `core`, `simulator`, `app`, and
         `ipa` jobs — committed (f7d57ce); config bugs found by run
-        32995981666 fixed in c25c813 (pushed, see Deviations) plus one more
-        hardening fix made locally today, not yet committed (see Deviations)
-  - [ ] Placeholder app target that builds, archives, and sideloads — code
-        exists and is pushed; `[device]` sideload check has never happened
-        (no green CI run has produced an .ipa yet)
+        32995981666 fixed in c25c813, confirmed green by run 32996684332;
+        the `simulator` job's device pin further hardened in 6296a00,
+        confirmed green by run 32997397929
+  - [ ] Placeholder app target that builds, archives, and sideloads — `[ci]`
+        half confirmed green (run 32997397929 produced the `StudyLapse-unsigned-ipa`
+        artifact); `[device]` sideload+launch check still needs the developer,
+        see Needs developer verification
   - [x] `StudyLapseCore` package skeleton, Foundation-only — committed
-  - [ ] `TimeAxis` — study/output conversions, speed, minimum-speed floor —
-        **implemented, uncommitted.** `StudyLapseCore/Sources/StudyLapseCore/TimeAxis.swift`
-        + `TimeAxisTests.swift` exist on disk, untracked by git
-  - [ ] `DayBoundary` — `dayKey`, `closeDeadline` — **implemented, uncommitted**
-        (`DayBoundary.swift` + `DayBoundaryTests.swift`, untracked)
-  - [ ] `TagRangeMath` — seed, split, merge, resize, validate — **implemented,
-        uncommitted** (`TagRangeMath.swift` + `TagRangeMathTests.swift`, untracked)
-  - [ ] `Formatters` — `H:MM` and `MM:SS` — **implemented, uncommitted**
-        (`Formatters.swift` + `FormattersTests.swift`, untracked)
-  - [ ] Property test over random tag-range operation sequences (≥1000 cases)
-        — **implemented, uncommitted.** `TagRangeMathTests.testTilingInvariantHoldsUnderRandomOperationSequences`
-        runs 1000 seeded random split/merge/resize ops against a 9-hour
-        session and re-validates the tiling invariant after each one
+  - [x] `TimeAxis` — study/output conversions, speed, minimum-speed floor —
+        committed (6296a00), `core` job green on run 32997397929
+  - [x] `DayBoundary` — `dayKey`, `closeDeadline` — committed (6296a00), green
+  - [x] `TagRangeMath` — seed, split, merge, resize, validate — committed
+        (6296a00), green
+  - [x] `Formatters` — `H:MM` and `MM:SS` — committed (6296a00), green
+  - [x] Property test over random tag-range operation sequences (≥1000 cases)
+        — `TagRangeMathTests.testTilingInvariantHoldsUnderRandomOperationSequences`,
+        1000 seeded random split/merge/resize ops against a 9-hour session,
+        tiling invariant re-validated after each one; part of the green `core` run
   - [x] CI grep step asserting no SwiftData/AVFoundation/SwiftUI/UIKit imports
-        — present in `ci.yml`'s `core` job; the four new source files above
-        only `import Foundation`, so the grep step will still pass once pushed
-
-None of the unchecked items above are blocked on anything — they're just
-sitting in the working tree unpushed. `swift test --package-path StudyLapseCore`
-has never actually been run (no Swift toolchain on this machine per CLAUDE.md);
-correctness is inferred from reading the code, not proven, until CI runs it.
+        — passed on run 32997397929
 
 ## Next up
 
@@ -63,9 +58,13 @@ correctness is inferred from reading the code, not proven, until CI runs it.
 
 ## Needs developer verification
 
-Nothing yet. Anything completed during an unattended session that carries a
-`[device]` or `[eyes-on]` criterion goes here, with what to look for on the
-phone. The agent never checks those boxes itself.
+- **Phase 0 `[device]` criterion** — sideload the `StudyLapse-unsigned-ipa`
+  artifact from CI run [32997397929](https://github.com/ReyanshMAX/lapse-app/actions/runs/32997397929)
+  with a free Apple ID per docs/SETUP.md, and confirm on the phone that it
+  launches showing the placeholder "StudyLapse" text view (`StudyLapseApp.swift`).
+  This proves the whole delivery pipeline (CI → unsigned .ipa → sideload →
+  launch) before any real capture/export code depends on it. Once confirmed,
+  check the corresponding box in Phase 0 above and mark the phase Done.
 
 ## Blocked
 
@@ -120,14 +119,14 @@ Not blocking, but constraining while there is no Mac:
   - docs/SETUP.md's embedded `project.yml` and `ci.yml` snippets updated to
     match all of the above so the spec doc doesn't go stale.
 
-- 2026-08-26, uncommitted: the `simulator` job's device pin
+- 2026-08-26, commit 6296a00: the `simulator` job's device pin
   (`platform=iOS Simulator,name=iPhone 17`, set in c25c813 above) is the same
   class of bug that broke the `app` job originally — a hardcoded model name
   that silently breaks whenever GitHub rotates the `macos-latest` simulator
   image. Replaced it with a step that queries `xcrun simctl list devices
   available -j` on the runner itself and picks whatever iPhone is actually
-  present, via `jq`, then tests against `-destination 'id=<that udid>'`. Not
-  yet committed or run — see Next action.
+  present, via `jq`, then tests against `-destination 'id=<that udid>'`.
+  Confirmed green on run 32997397929.
 
 ---
 
@@ -218,9 +217,10 @@ Newest last. One line per session: date, what moved, how it ended.
 - 2026-08-24 — spec suite generated, no code yet.
 - 2026-08-26 — repo scaffolding and initial CI workflow pushed; a subsequent
   run (32995981666) failed 3 of 4 jobs on config bugs (see Deviations), fixed
-  and pushed as c25c813. All four Phase 0 `StudyLapseCore` math files
-  (`TimeAxis`, `DayBoundary`, `TagRangeMath`, `Formatters`) plus tests and the
-  ≥1000-case property test written and sitting in the working tree, along with
-  a further CI hardening fix (dynamic simulator lookup) — none of this is
-  committed or pushed yet. Ended without a green run confirming any of it;
-  next session should commit, push, and watch CI before doing anything else.
+  and pushed as c25c813, confirmed green (32996684332). Then committed and
+  pushed all four Phase 0 `StudyLapseCore` math files (`TimeAxis`,
+  `DayBoundary`, `TagRangeMath`, `Formatters`, tests, ≥1000-case property
+  test) plus a further CI hardening fix (dynamic simulator lookup replacing
+  the `iPhone 17` pin) as commit 6296a00 — run 32997397929 came back green on
+  all four jobs. Every Phase 0 `[ci]` criterion is now satisfied; only the
+  `[device]` sideload check remains, logged under Needs developer verification.
