@@ -1,13 +1,13 @@
 # Status
 
 **Last updated:** 2026-08-26
-**Current phase:** 0 of 9 — Core logic, provable without a Mac
-**Next action:** Every `[ci]` criterion in Phase 0 is now confirmed green (run
-32997397929). The only thing left in the phase is the `[device]` criterion —
-sideload the `StudyLapse-unsigned-ipa` artifact from that run with a free
-Apple ID (docs/SETUP.md) and confirm the placeholder view launches. That is a
-developer action, not an agent one — see Needs developer verification. Once
-confirmed, check that box, mark Phase 0 Done, and start Phase 1.
+**Current phase:** 1 of 9 — One clip, captured and played back on device
+**Next action:** Start Phase 1 per BUILD.md. First interface contract to stand
+up: `StudyLapse/Capture/CaptureController.swift` consuming a `FrameSource`
+(not owning `AVCaptureSession` directly — D-026, docs/TESTING.md), plus camera
+permission prime/request. The on-device debug log (append-only ring buffer,
+scrollable, copy-to-clipboard) is not optional for this phase — there's still
+no console/debugger.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -19,52 +19,36 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Done
 
-Nothing fully closed yet — Phase 0's last criterion (`[device]` sideload) is
-still open. But as of run 32997397929 (2026-08-26, commit 6296a00), all `[ci]`
-work for Phase 0 is implemented, pushed, and confirmed green.
+- **Phase 0 — Core logic, provable without a Mac** (2026-08-26)
+  - `TimeAxis`, `DayBoundary`, `TagRangeMath`, `Formatters` — implemented,
+    tested (including the ≥1000-case property test), all green on CI run
+    32997397929 (commit 6296a00)
+  - Repo layout, `project.yml`, `.github/workflows/ci.yml` (`core`,
+    `simulator`, `app`, `ipa` jobs) — all four green on the same run
+  - `[device]` criterion: developer sideloaded `StudyLapse-unsigned-ipa` from
+    run 32997397929 via Sideloadly and confirmed the placeholder "StudyLapse"
+    view launches on their phone (confirmed 2026-08-26)
+  - No deviations outstanding — see Deviations log for the three CI config
+    bugs found and fixed along the way
 
 ## In progress
 
-- **Phase 0 — Core logic, provable without a Mac**
-  - [x] Repo layout, `.gitignore`, `project.yml` — committed (1884355)
-  - [x] `.github/workflows/ci.yml` with the `core`, `simulator`, `app`, and
-        `ipa` jobs — committed (f7d57ce); config bugs found by run
-        32995981666 fixed in c25c813, confirmed green by run 32996684332;
-        the `simulator` job's device pin further hardened in 6296a00,
-        confirmed green by run 32997397929
-  - [ ] Placeholder app target that builds, archives, and sideloads — `[ci]`
-        half confirmed green (run 32997397929 produced the `StudyLapse-unsigned-ipa`
-        artifact); `[device]` sideload+launch check still needs the developer,
-        see Needs developer verification
-  - [x] `StudyLapseCore` package skeleton, Foundation-only — committed
-  - [x] `TimeAxis` — study/output conversions, speed, minimum-speed floor —
-        committed (6296a00), `core` job green on run 32997397929
-  - [x] `DayBoundary` — `dayKey`, `closeDeadline` — committed (6296a00), green
-  - [x] `TagRangeMath` — seed, split, merge, resize, validate — committed
-        (6296a00), green
-  - [x] `Formatters` — `H:MM` and `MM:SS` — committed (6296a00), green
-  - [x] Property test over random tag-range operation sequences (≥1000 cases)
-        — `TagRangeMathTests.testTilingInvariantHoldsUnderRandomOperationSequences`,
-        1000 seeded random split/merge/resize ops against a 9-hour session,
-        tiling invariant re-validated after each one; part of the green `core` run
-  - [x] CI grep step asserting no SwiftData/AVFoundation/SwiftUI/UIKit imports
-        — passed on run 32997397929
+- **Phase 1 — One clip, captured and played back on device** — not started.
+  See BUILD.md for full scope/interface contracts. Key constraint:
+  `CaptureController` must consume a `FrameSource` from the start rather than
+  owning `AVCaptureSession` directly (D-026, docs/TESTING.md) — this seam is
+  much more expensive to introduce later.
 
 ## Next up
 
-1. Finish Phase 0 and keep CI green
-2. Phase 1 — one clip captured and played back, via the sideloaded .ipa
-3. Phase 2 — multi-clip session, SwiftData, recovery
+1. Phase 1 — one clip captured and played back, via the sideloaded .ipa
+2. Phase 2 — multi-clip session, SwiftData, recovery
 
 ## Needs developer verification
 
-- **Phase 0 `[device]` criterion** — sideload the `StudyLapse-unsigned-ipa`
-  artifact from CI run [32997397929](https://github.com/ReyanshMAX/lapse-app/actions/runs/32997397929)
-  with a free Apple ID per docs/SETUP.md, and confirm on the phone that it
-  launches showing the placeholder "StudyLapse" text view (`StudyLapseApp.swift`).
-  This proves the whole delivery pipeline (CI → unsigned .ipa → sideload →
-  launch) before any real capture/export code depends on it. Once confirmed,
-  check the corresponding box in Phase 0 above and mark the phase Done.
+Nothing open right now. Anything completed during an unattended session that
+carries a `[device]` or `[eyes-on]` criterion goes here, with what to look for
+on the phone. The agent never checks those boxes itself.
 
 ## Blocked
 
@@ -222,5 +206,6 @@ Newest last. One line per session: date, what moved, how it ended.
   `DayBoundary`, `TagRangeMath`, `Formatters`, tests, ≥1000-case property
   test) plus a further CI hardening fix (dynamic simulator lookup replacing
   the `iPhone 17` pin) as commit 6296a00 — run 32997397929 came back green on
-  all four jobs. Every Phase 0 `[ci]` criterion is now satisfied; only the
-  `[device]` sideload check remains, logged under Needs developer verification.
+  all four jobs. Developer sideloaded the resulting .ipa via Sideloadly and
+  confirmed the placeholder view launches. **Phase 0 complete.** Next session
+  starts Phase 1 (real camera capture).
