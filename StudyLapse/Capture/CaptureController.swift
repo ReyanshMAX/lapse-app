@@ -14,7 +14,10 @@ enum CaptureControllerError: Error {
 /// All gating/writer state is only ever touched on `queue`, so it is safe
 /// whether frames arrive from a real capture buffer queue (device) or
 /// synchronously from the calling thread (`SyntheticFrameSource` in tests).
-final class CaptureController {
+/// `@unchecked Sendable`: the compiler can't see that `queue` serializes every
+/// mutable access, which is exactly what makes this safe to capture in the
+/// `@Sendable` closures passed to `DispatchQueue.async`.
+final class CaptureController: @unchecked Sendable {
     private let source: FrameSource
     private let clock: Clock
     private let queue = DispatchQueue(label: "studylapse.capture.controller")
