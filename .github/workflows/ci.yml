@@ -31,12 +31,28 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate
+      - name: Find an available iOS Simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '
+            .devices
+            | to_entries
+            | map(select(.key | contains("iOS")))
+            | map(.value) | flatten
+            | map(select(.isAvailable and (.name | contains("iPhone"))))
+            | .[0].udid
+          ')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            echo "No available iPhone simulator found on this runner" >&2
+            exit 1
+          fi
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Test
         run: |
           xcodebuild \
             -project StudyLapse.xcodeproj \
             -scheme StudyLapse \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -destination 'id=${{ steps.sim.outputs.udid }}' \
             CODE_SIGNING_ALLOWED=NO \
             test
 

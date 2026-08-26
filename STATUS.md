@@ -1,11 +1,12 @@
 # Status
 
-**Last updated:** 2026-08-24
+**Last updated:** 2026-08-26
 **Current phase:** 0 of 9 — Core logic, provable without a Mac
-**Next action:** Scaffold the repo — `project.yml`, the placeholder app target,
-`StudyLapseCore`, and `.github/workflows/ci.yml` per docs/SETUP.md — then get all
-four CI jobs green and sideload the resulting .ipa to confirm the delivery
-pipeline end to end before writing real code.
+**Next action:** `git add` the four uncommitted `StudyLapseCore` math files
+(`DayBoundary.swift`, `Formatters.swift`, `TagRangeMath.swift`, `TimeAxis.swift`
++ their tests) and the further-hardened `.github/workflows/ci.yml` (dynamic
+simulator lookup, see Deviations), commit, push, then `gh run watch` and confirm
+all four CI jobs actually go green — none of this has been through a CI run yet.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -17,22 +18,42 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Done
 
-Nothing yet. Spec suite generated 2026-08-24.
+Nothing yet — no phase has a confirmed green CI run behind it. Spec suite
+generated 2026-08-24.
 
 ## In progress
 
 - **Phase 0 — Core logic, provable without a Mac**
-  - [ ] Repo layout, `.gitignore`, `project.yml`
-  - [ ] `.github/workflows/ci.yml` with the `core`, `simulator`, `app`, and
-        `ipa` jobs
-  - [ ] Placeholder app target that builds, archives, and sideloads
-  - [ ] `StudyLapseCore` package skeleton, Foundation-only
-  - [ ] `TimeAxis` — study/output conversions, speed, minimum-speed floor
-  - [ ] `DayBoundary` — `dayKey`, `closeDeadline`
-  - [ ] `TagRangeMath` — seed, split, merge, resize, validate
-  - [ ] `Formatters` — `H:MM` and `MM:SS`
+  - [x] Repo layout, `.gitignore`, `project.yml` — committed (1884355)
+  - [x] `.github/workflows/ci.yml` with the `core`, `simulator`, `app`, and
+        `ipa` jobs — committed (f7d57ce); config bugs found by run
+        32995981666 fixed in c25c813 (pushed, see Deviations) plus one more
+        hardening fix made locally today, not yet committed (see Deviations)
+  - [ ] Placeholder app target that builds, archives, and sideloads — code
+        exists and is pushed; `[device]` sideload check has never happened
+        (no green CI run has produced an .ipa yet)
+  - [x] `StudyLapseCore` package skeleton, Foundation-only — committed
+  - [ ] `TimeAxis` — study/output conversions, speed, minimum-speed floor —
+        **implemented, uncommitted.** `StudyLapseCore/Sources/StudyLapseCore/TimeAxis.swift`
+        + `TimeAxisTests.swift` exist on disk, untracked by git
+  - [ ] `DayBoundary` — `dayKey`, `closeDeadline` — **implemented, uncommitted**
+        (`DayBoundary.swift` + `DayBoundaryTests.swift`, untracked)
+  - [ ] `TagRangeMath` — seed, split, merge, resize, validate — **implemented,
+        uncommitted** (`TagRangeMath.swift` + `TagRangeMathTests.swift`, untracked)
+  - [ ] `Formatters` — `H:MM` and `MM:SS` — **implemented, uncommitted**
+        (`Formatters.swift` + `FormattersTests.swift`, untracked)
   - [ ] Property test over random tag-range operation sequences (≥1000 cases)
-  - [ ] CI grep step asserting no SwiftData/AVFoundation/SwiftUI/UIKit imports
+        — **implemented, uncommitted.** `TagRangeMathTests.testTilingInvariantHoldsUnderRandomOperationSequences`
+        runs 1000 seeded random split/merge/resize ops against a 9-hour
+        session and re-validates the tiling invariant after each one
+  - [x] CI grep step asserting no SwiftData/AVFoundation/SwiftUI/UIKit imports
+        — present in `ci.yml`'s `core` job; the four new source files above
+        only `import Foundation`, so the grep step will still pass once pushed
+
+None of the unchecked items above are blocked on anything — they're just
+sitting in the working tree unpushed. `swift test --package-path StudyLapseCore`
+has never actually been run (no Swift toolchain on this machine per CLAUDE.md);
+correctness is inferred from reading the code, not proven, until CI runs it.
 
 ## Next up
 
@@ -98,6 +119,15 @@ Not blocking, but constraining while there is no Mac:
     `StudyLapseTests` target settings.
   - docs/SETUP.md's embedded `project.yml` and `ci.yml` snippets updated to
     match all of the above so the spec doc doesn't go stale.
+
+- 2026-08-26, uncommitted: the `simulator` job's device pin
+  (`platform=iOS Simulator,name=iPhone 17`, set in c25c813 above) is the same
+  class of bug that broke the `app` job originally — a hardcoded model name
+  that silently breaks whenever GitHub rotates the `macos-latest` simulator
+  image. Replaced it with a step that queries `xcrun simctl list devices
+  available -j` on the runner itself and picks whatever iPhone is actually
+  present, via `jq`, then tests against `-destination 'id=<that udid>'`. Not
+  yet committed or run — see Next action.
 
 ---
 
@@ -186,3 +216,11 @@ planning to tidy it up at the end — the end may not be yours to choose.
 Newest last. One line per session: date, what moved, how it ended.
 
 - 2026-08-24 — spec suite generated, no code yet.
+- 2026-08-26 — repo scaffolding and initial CI workflow pushed; a subsequent
+  run (32995981666) failed 3 of 4 jobs on config bugs (see Deviations), fixed
+  and pushed as c25c813. All four Phase 0 `StudyLapseCore` math files
+  (`TimeAxis`, `DayBoundary`, `TagRangeMath`, `Formatters`) plus tests and the
+  ≥1000-case property test written and sitting in the working tree, along with
+  a further CI hardening fix (dynamic simulator lookup) — none of this is
+  committed or pushed yet. Ended without a green run confirming any of it;
+  next session should commit, push, and watch CI before doing anything else.
