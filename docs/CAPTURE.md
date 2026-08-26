@@ -20,18 +20,37 @@ scales it further from there.
 
 ## Session configuration
 
-```swift
-final class CaptureController: NSObject {
-    static let sessionQueue = DispatchQueue(label: "studylapse.capture.session")
-    static let bufferQueue  = DispatchQueue(label: "studylapse.capture.buffer")
+`CaptureController` is **media-only**: it consumes a `FrameSource` (D-026) and
+knows nothing about `Session`, `Clip`, or `ModelContext` — the model layer sits
+above it in the dependency graph (docs/ARCHITECTURE.md). `SessionCoordinator`
+drives it and persists each finalized chunk on the main actor. The
+`AVCaptureSession` and its `sessionQueue` / `bufferQueue` live inside
+`CameraFrameSource`, not here.
 
-    func configure(position: AVCaptureDevice.Position) throws
-    func start(session: Session) throws        // begins a new clip
-    func pause() async                         // finalizes current clip, stops session
-    func resume(session: Session) throws       // new clip, index = last + 1
-    func end(session: Session) async           // finalize + mark session ended
+```swift
+struct FinalizedClip: Sendable { let index: Int; let url: URL; let frameCount: Int }
+
+final class CaptureController {
+    // Rollover thresholds (D-015).
+    static let maxSegmentSeconds: Double  // 120
+    static let maxSegmentFrames: Int      // 1000
+
+    // Single clip (Phase 1 thin slice).
+    func startClip(to url: URL, intervalSeconds: Double, outputFrameRate: Int32) throws
+    func finishClip() async throws -> (frameCount: Int, url: URL)
+
+    // Continuous capture with chunk rollover (Phase 2+).
+    func startRecording(firstClipIndex: Int,
+                        urlForClip: @escaping @Sendable (Int) -> URL,
+                        intervalSeconds: Double, outputFrameRate: Int32,
+                        onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void) throws
+    func stopRecording() async   // finalizes the current chunk via onClipFinalized
 }
 ```
+
+`onClipFinalized` fires on the writer's completion queue with a plain value —
+the coordinator wraps its body in `Task { @MainActor in … }` to persist the
+`Clip`. `@Model` types never cross the capture-queue boundary.
 
 - Preset `.hd1920x1080`. Do not use 4K: it triples file size and thermal load for
   output that is downscaled to 1080 or smaller anyway.
@@ -89,9 +108,13 @@ misjudge its pacing. Feed through an `AVAssetWriterInputPixelBufferAdaptor`.
 ## Chunking and durability (D-015)
 
 - Finalize the current clip and open the next when **either** 120 seconds of
-  recorded wall time have elapsed **or** 1000 frames have been written.
-- Chunk rollover must not drop a frame: open the next writer before finalizing
-  the previous one, and route the first frame of the new interval into it.
+  recorded time have elapsed (measured as the source-PTS delta from the chunk's
+  first accepted frame — this is real elapsed time while the capture session
+  runs, and pauses don't count because the session is torn down on pause)
+  **or** 1000 frames have been written.
+- Chunk rollover must not drop a frame: the frame that trips the threshold is
+  routed into the new chunk as its frame 0, and the previous chunk's writer is
+  finalized asynchronously so frames keep flowing.
 - On successful `finishWriting`, set `isFinalized = true`, persist `frameCount`,
   recompute `studyOffsetStart` for the session, and write `ghost.jpg` from the
   clip's last frame.

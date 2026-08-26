@@ -124,6 +124,11 @@ final class SyntheticFrameSource: FrameSource {
     private let virtualFrameRate: Double
     private var pixelBufferPool: CVPixelBufferPool?
     private var isRunning = false
+    /// Monotonic across every `emit` call so PTS never goes backwards — a
+    /// second `emit` (e.g. a session resume) continues the timeline rather
+    /// than restarting it at zero, which would break interval gating and
+    /// chunk-rollover math downstream.
+    private var tickCursor: Int64 = 0
 
     init(size: CGSize = CGSize(width: 1920, height: 1080), virtualFrameRate: Double = 30) {
         self.size = size
@@ -148,16 +153,18 @@ final class SyntheticFrameSource: FrameSource {
     }
 
     /// Advances the virtual clock by `seconds` and synchronously emits one
-    /// frame per virtual tick at `virtualFrameRate`.
+    /// frame per virtual tick at `virtualFrameRate`. PTS continues from wherever
+    /// the previous `emit` left off.
     func emit(seconds: Double) {
         guard let pixelBufferPool else { return }
         let totalTicks = Int(seconds * virtualFrameRate)
-        for tick in 0..<totalTicks {
+        for _ in 0..<totalTicks {
             guard isRunning else { break }
             var pixelBuffer: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
             guard let buffer = pixelBuffer else { continue }
-            let pts = CMTime(value: Int64(tick), timescale: Int32(virtualFrameRate))
+            let pts = CMTime(value: tickCursor, timescale: Int32(virtualFrameRate))
+            tickCursor += 1
             onFrame?(buffer, pts)
         }
     }

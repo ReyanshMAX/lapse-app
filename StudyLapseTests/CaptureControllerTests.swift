@@ -52,4 +52,81 @@ final class CaptureControllerTests: XCTestCase {
         XCTAssertEqual(reader.status, .completed)
         XCTAssertGreaterThanOrEqual(sampleCount, 20)
     }
+
+    /// BUILD.md Phase 2 / D-015: continuous capture rolls a new chunk every
+    /// `maxSegmentSeconds` of recorded time, and the boundary drops no frame —
+    /// the sum of per-chunk frame counts equals what one unchunked clip of the
+    /// same input would have written.
+    func testChunkRolloverPreservesTotalFrameCount() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let source = SyntheticFrameSource(size: CGSize(width: 1920, height: 1080), virtualFrameRate: 30)
+        let controller = CaptureController(source: source, clock: SystemClock())
+        let collector = FinalizedCollector()
+
+        try controller.startRecording(
+            firstClipIndex: 0,
+            urlForClip: { index in dir.appendingPathComponent(String(format: "%03d.mov", index)) },
+            intervalSeconds: 3,
+            outputFrameRate: 30,
+            onClipFinalized: { collector.append($0) }
+        )
+
+        // 300 virtual seconds at a 3s interval → 100 accepted frames. Rollover
+        // at 120s of recorded PTS → chunk boundaries near 120s and 240s → three
+        // chunks of 40, 40, 20 frames.
+        source.emit(seconds: 300)
+        await controller.stopRecording()
+
+        let reachedTotal = await collector.waitUntilTotalFrames(100, timeout: 15)
+        XCTAssertTrue(reachedTotal, "chunk finalize callbacks did not deliver 100 frames in time")
+
+        let clips = collector.sortedByIndex()
+        XCTAssertGreaterThanOrEqual(clips.count, 2, "expected at least one rollover")
+        XCTAssertEqual(clips.map(\.index), Array(0..<clips.count), "chunk indices must be contiguous from 0")
+        XCTAssertEqual(clips.reduce(0) { $0 + $1.frameCount }, 100, "rollover must not drop or duplicate a frame")
+
+        for chunk in clips.dropLast() {
+            XCTAssertEqual(Double(chunk.frameCount), 40, accuracy: 1,
+                           "a capped chunk should hold ~40 frames (120s / 3s)")
+        }
+
+        // Each finalized chunk file is independently readable.
+        for chunk in clips {
+            let asset = AVURLAsset(url: chunk.url)
+            let isPlayable = try await asset.load(.isPlayable)
+            XCTAssertTrue(isPlayable, "chunk \(chunk.index) is not playable")
+        }
+    }
+}
+
+/// Thread-safe sink for `onClipFinalized`, which fires on the writer's
+/// completion queue rather than the caller's.
+final class FinalizedCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var clips: [FinalizedClip] = []
+
+    func append(_ clip: FinalizedClip) {
+        lock.lock(); defer { lock.unlock() }
+        clips.append(clip)
+    }
+
+    func sortedByIndex() -> [FinalizedClip] {
+        lock.lock(); defer { lock.unlock() }
+        return clips.sorted { $0.index < $1.index }
+    }
+
+    func waitUntilTotalFrames(_ target: Int, timeout: TimeInterval) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            lock.lock()
+            let total = clips.reduce(0) { $0 + $1.frameCount }
+            lock.unlock()
+            if total >= target { return true }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return false
+    }
 }
