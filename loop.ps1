@@ -50,6 +50,14 @@ $logPath = Join-Path $RepoPath "loop.log"
 $stopPath = Join-Path $RepoPath ".loop-stop"
 $prompt = "Follow LOOP.md. Scope for this loop: $Scope."
 
+# Fed to `claude -p` via stdin rather than as a CLI argument. Start-Process
+# -ArgumentList only joins array elements with spaces — it does not quote an
+# element that itself contains spaces — so a multi-word prompt passed as an
+# argument silently gets word-split before claude.exe ever sees it. Stdin
+# sidesteps that: every remaining argv token is a single word.
+$promptFile = Join-Path $env:TEMP "loop-prompt-$(Get-Random).txt"
+Set-Content -Path $promptFile -Value $prompt -NoNewline -Encoding UTF8
+
 function Write-Log {
     param([string]$Message)
     $line = "[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
@@ -115,9 +123,10 @@ while ($true) {
     $stderr = Join-Path $env:TEMP "loop-stderr-$(Get-Random).txt"
 
     $proc = Start-Process -FilePath "claude" `
-        -ArgumentList @("-p", $prompt, "--output-format", "json", "--permission-mode", "dontAsk") `
+        -ArgumentList @("-p", "--output-format", "json", "--permission-mode", "dontAsk") `
         -WorkingDirectory $RepoPath `
         -NoNewWindow -PassThru `
+        -RedirectStandardInput $promptFile `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
@@ -197,4 +206,5 @@ while ($true) {
     }
 }
 
+Remove-Item $promptFile -ErrorAction SilentlyContinue
 Write-Log "=== loop exited cleanly ==="
