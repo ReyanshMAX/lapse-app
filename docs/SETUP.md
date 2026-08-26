@@ -51,11 +51,15 @@ targets:
       - path: StudyLapse
     dependencies:
       - package: StudyLapseCore
+    scheme:
+      testTargets:
+        - StudyLapseTests
     settings:
       base:
         PRODUCT_NAME: StudyLapse
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: >-
@@ -65,7 +69,27 @@ targets:
           Used only when you record a voiceover over a finished timelapse.
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: >-
           Used to save your exported timelapse to Photos.
+  StudyLapseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: StudyLapseTests
+    dependencies:
+      - target: StudyLapse
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 ```
+
+`GENERATE_INFOPLIST_FILE: YES` is required — the `INFOPLIST_KEY_*` settings above are inert
+without it, and with no physical `Info.plist` in `sources`, the app has no Info.plist at all
+without it (archive validation fails with "Build input file cannot be found: .../Info.plist").
+
+`StudyLapseTests` is a minimal placeholder XCTest target so the `StudyLapse` scheme's test
+action is non-empty (see "Simulator tests" below); real simulator-level tests land here in
+later phases per the repo structure table in CLAUDE.md. The `scheme.testTargets` entry wires
+it into the `StudyLapse` scheme's test action explicitly — XcodeGen does not always infer this
+automatically, so don't rely on the default.
 
 Every CI job runs this first:
 
@@ -116,7 +140,7 @@ jobs:
           xcodebuild \
             -project StudyLapse.xcodeproj \
             -scheme StudyLapse \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             CODE_SIGNING_ALLOWED=NO \
             test
 
@@ -134,7 +158,7 @@ jobs:
           xcodebuild \
             -project StudyLapse.xcodeproj \
             -scheme StudyLapse \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             build
@@ -145,7 +169,12 @@ Notes on this workflow:
 - Runner images move. Do not hardcode an Xcode path or a simulator device name
   without first checking the `Show toolchain` output — if the named simulator
   does not exist on the image, use
-  `-destination 'generic/platform=iOS Simulator'` instead.
+  `-destination 'generic/platform=iOS Simulator'` instead. This works for a
+  plain `build` action (no concrete device needed to compile), but **not**
+  for a `test` action — running tests requires a real bootable simulator, so
+  the `simulator` job's `test` step must always name a device that actually
+  exists on the current runner image (check `Show toolchain` / the
+  "Available destinations" list in a failed run's log).
 - `CODE_SIGNING_ALLOWED=NO` is what makes an unsigned build possible. Do not add
   signing secrets to CI: free provisioning is device-specific and issued through
   the Xcode GUI, so it cannot be reproduced on a runner.

@@ -15,11 +15,15 @@ targets:
       - path: StudyLapse
     dependencies:
       - package: StudyLapseCore
+    scheme:
+      testTargets:
+        - StudyLapseTests
     settings:
       base:
         PRODUCT_NAME: StudyLapse
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: >-
@@ -29,3 +33,13 @@ targets:
           Used only when you record a voiceover over a finished timelapse.
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: >-
           Used to save your exported timelapse to Photos.
+  StudyLapseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: StudyLapseTests
+    dependencies:
+      - target: StudyLapse
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

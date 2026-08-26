@@ -69,6 +69,36 @@ Not blocking, but constraining while there is no Mac:
   no `.xcodeproj` to build/archive. Added the step to both jobs in
   `.github/workflows/ci.yml` and updated docs/SETUP.md to match.
 
+- Run 32995981666 (first all-four-jobs run) failed three of four jobs. Three
+  independent root causes, all fixed in the same commit:
+  - `simulator` job: the `StudyLapse` scheme had no test action — there was no
+    Xcode test target at all yet (the Phase 0 property tests live in
+    `StudyLapseCore`, tested via `swift test` in the `core` job). Added a
+    minimal placeholder `StudyLapseTests` XCTest target to `project.yml`,
+    wired explicitly into the `StudyLapse` scheme via `scheme.testTargets`
+    (XcodeGen does not reliably auto-attach this). Real simulator-level tests
+    (persistence, recovery, export, fixtures per CLAUDE.md's repo structure)
+    land in this target in later phases.
+  - `app` job: `-destination 'platform=iOS Simulator,name=iPhone 15'` — no
+    "iPhone 15" simulator exists on the current runner image (Xcode 26.6);
+    available devices are iPhone 16e/17/17 Pro/17 Pro Max/17e/Air and iPad
+    models. Switched to `'generic/platform=iOS Simulator'`, which the doc
+    already recommended as the fallback for exactly this case and doesn't
+    need a concrete device to just compile.
+  - `simulator` job (second issue, same job): also needed a concrete-device
+    destination once the test action existed — `test` (unlike `build`) needs
+    a real bootable simulator, so `generic/platform=iOS Simulator` isn't
+    enough there. Set it to `'platform=iOS Simulator,name=iPhone 17'`, a
+    device confirmed present on the current runner image.
+  - `ipa` job: archive validation failed with "Build input file cannot be
+    found: .../StudyLapse.app/Info.plist". `project.yml` set several
+    `INFOPLIST_KEY_*` settings but never `GENERATE_INFOPLIST_FILE: YES`, so
+    no Info.plist was ever generated — those keys were inert. Added
+    `GENERATE_INFOPLIST_FILE: YES` to both the `StudyLapse` and
+    `StudyLapseTests` target settings.
+  - docs/SETUP.md's embedded `project.yml` and `ci.yml` snippets updated to
+    match all of the above so the spec doc doesn't go stale.
+
 ---
 
 ## Update protocol
