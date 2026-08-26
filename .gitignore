@@ -17,3 +17,7 @@ Package.resolved
 
 # macOS
 .DS_Store
+
+# loop.ps1 — local-only state, never shared across machines
+loop.log
+.loop-stop

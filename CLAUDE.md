@@ -55,6 +55,7 @@ StudyLapseTests/       simulator tests — persistence, recovery, export, fixtur
 |---|---|
 | current state, what to do next | STATUS.md |
 | build order, phase acceptance criteria | BUILD.md |
+| running an unattended overnight build loop | LOOP.md |
 | why something is the way it is | DECISIONS.md |
 | something unspecified or ambiguous | OPEN_QUESTIONS.md |
 | how modules fit together, threading | docs/ARCHITECTURE.md |
