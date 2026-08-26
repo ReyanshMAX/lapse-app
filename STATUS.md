@@ -33,8 +33,8 @@ streaming, Instruments, and any paid-program entitlement.
 ## In progress
 
 - **Phase 1 — One clip, captured and played back on device.** Both `[ci]`
-  criteria green on run 33004332059 (commits 6ed0526, 70e2772, aec8db9,
-  642b54d):
+  criteria green on run 33006800466 (commits 6ed0526, 70e2772, aec8db9,
+  642b54d, 983d1e3, c09ceb7, 42ff788):
   - `FrameSource` protocol + `CameraFrameSource` (device) / `SyntheticFrameSource`
     (CI) — `StudyLapse/Capture/FrameSource.swift`
   - `CaptureController` — consumes `FrameSource`, never owns `AVCaptureSession`
@@ -63,7 +63,7 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Needs developer verification
 
-**Phase 1**, build from run 33004332059 (`StudyLapse-unsigned-ipa`) — sideload
+**Phase 1**, build from run 33006800466 (`StudyLapse-unsigned-ipa`) — sideload
 and check:
 
 - Camera permission prime shows, then the system prompt; after granting,
