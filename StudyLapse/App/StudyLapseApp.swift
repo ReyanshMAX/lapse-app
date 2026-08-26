@@ -4,13 +4,7 @@ import SwiftUI
 struct StudyLapseApp: App {
     var body: some Scene {
         WindowGroup {
-            PlaceholderView()
+            RecordView()
         }
-    }
-}
-
-struct PlaceholderView: View {
-    var body: some View {
-        Text("StudyLapse")
     }
 }
