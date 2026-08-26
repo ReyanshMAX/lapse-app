@@ -2,12 +2,14 @@
 
 **Last updated:** 2026-08-26
 **Current phase:** 2 of 9 — A real multi-clip session with correct study time
-**Next action:** Start Phase 2 per BUILD.md. First up: the SwiftData stack and
-entities from docs/DATA_MODEL.md, then `SessionCoordinator` (start/pause/
-resume/end) and chunked writing every 120s/1000 frames (D-015) on top of
-Phase 1's `CaptureController`. `StudyLapseCore`'s `studyOffsetStart` tiling
-invariant needs a unit test per BUILD.md's acceptance criteria before this
-phase can close.
+**Next action:** Phase 2 in progress. Criterion 1 (`[ci]` StudyLapseCore tests)
+is already green — the [120,300,60]→480, dayKey-02:30, and closeDeadline cases
+were all written and passing in Phase 0 (run 33021301863). Next unbuilt piece:
+the SwiftData entities in `StudyLapse/Model/` per docs/DATA_MODEL.md plus an
+in-memory `ModelContainer` helper for the simulator test target (compile-only
+commit), then `studyOffsetStart` recompute + tiling-invariant simulator test,
+then `SyntheticFrameSource` monotonic-PTS fix + chunk rollover (D-015), then
+`ClipRecovery`, then `SessionCoordinator`, then the record screen + app wiring.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -76,10 +78,22 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 2 — A real multi-clip session with correct study time** — not
-  started. See BUILD.md for full scope/interface contracts. Builds
+- **Phase 2 — A real multi-clip session with correct study time** — in
+  progress. See BUILD.md for full scope/interface contracts. Builds
   `SessionCoordinator` and chunked writing (D-015) on top of Phase 1's
   `CaptureController`, plus the SwiftData stack from docs/DATA_MODEL.md.
+  - `[ci]` criterion 1 (StudyLapseCore tests) — **done**, satisfied verbatim by
+    the Phase 0 test suite (`testTotalStudySecondsSumsClipDurations`,
+    `testDayKeyBeforeCutoffBelongsToPreviousDay`,
+    `testCloseDeadlineLandsAtCutoffTheFollowingDay`), green on run 33021301863.
+  - Phase 0's "Deferred to Mac access" note (day-boundary tests re-run on
+    Apple's Foundation before Phase 2 closes) is **discharged**: the `core` CI
+    job runs `swift test` on `macos-latest`, which is Apple's Foundation, not
+    swift-corelibs.
+  - Criteria 2, 3, 4 are tagged `[device]` in BUILD.md but are all listed as
+    CI-verifiable in docs/TESTING.md ("Fully verifiable in CI with no camera").
+    Plan: write them as `simulator`-job tests so CI exercises them, but leave
+    the boxes unchecked per LOOP.md — see Deviations for the doc conflict.
 
 ## Next up
 
@@ -109,6 +123,19 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-26, Phase 2: BUILD.md Phase 2 tags criteria 2 (`studyOffsetStart`
+  tiling invariant test), 3 (force-quit recovery: ≤120s lost, no
+  `isFinalized == false` rows) and 4 (session left `.recording` at launch moved
+  to `.paused`) as `[device]`. docs/TESTING.md's "What this buys, concretely"
+  section lists all three as "Fully verifiable in CI with no camera" via
+  `SyntheticFrameSource` + an in-memory `ModelContainer` on the simulator
+  runner. Resolution taken: the tests are written in `StudyLapseTests` and run
+  in the `simulator` CI job, but the boxes are left unchecked per LOOP.md's
+  "never check off a `[device]` criterion" rule. The developer decides whether
+  a green simulator run is sufficient to check them or whether a literal
+  on-device run is still wanted. Not blocking; no doc was edited because both
+  docs are internally consistent — they just disagree on the tag.
 
 - docs/SETUP.md's `app` and `ipa` CI job snippets were each missing their own
   "Generate project" (`xcodegen generate`) step. Each job runs on a fresh
