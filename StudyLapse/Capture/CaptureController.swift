@@ -120,8 +120,19 @@ final class CaptureController {
         }
 
         guard let writerInput, let pixelBufferAdaptor else { return }
+
+        // Frames arrive on `queue` in a burst (synthetic frames aren't real-time
+        // paced; real device frames are ~3s apart so this rarely engages). The
+        // writer's internal encoder briefly lags behind append calls with
+        // expectsMediaDataInRealTime = false — wait for it rather than dropping
+        // an accepted frame outright.
+        var waitAttempts = 0
+        while !writerInput.isReadyForMoreMediaData && waitAttempts < 200 {
+            Thread.sleep(forTimeInterval: 0.005)
+            waitAttempts += 1
+        }
         guard writerInput.isReadyForMoreMediaData else {
-            DebugLog.write("Capture", "frame dropped, writer input not ready")
+            DebugLog.write("Capture", "frame dropped, writer input not ready after waiting")
             return
         }
 
