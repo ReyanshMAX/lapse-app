@@ -23,6 +23,15 @@ unconditional on purpose — no judgment call about whether a leftover diff is
 worth finishing, just a clean slate every cycle. Units of work are small, so
 redoing one is cheap.
 
+--permission-mode dontAsk by itself is NOT auto-approve — verified live: with
+no --allowedTools it denies Write/Edit/Bash/git-push/gh outright, since
+"don't ask" defaults to deny for anything not already trusted rather than
+silently allowing it. Combined with --allowedTools (below) it keeps that
+deny-by-default posture for everything else while pre-authorizing exactly
+what LOOP.md's protocol uses, which is why it's used over the coarser
+--permission-mode bypassPermissions (also verified working, but skips every
+check including ones the loop never needs, e.g. WebFetch).
+
 Usage:
   .\loop.ps1 -Scope "Phase 0 — Core logic, provable without a Mac"
 #>
@@ -123,7 +132,8 @@ while ($true) {
     $stderr = Join-Path $env:TEMP "loop-stderr-$(Get-Random).txt"
 
     $proc = Start-Process -FilePath "claude" `
-        -ArgumentList @("-p", "--output-format", "json", "--permission-mode", "dontAsk") `
+        -ArgumentList @("-p", "--output-format", "json", "--permission-mode", "dontAsk", `
+            "--allowedTools", "Read", "Glob", "Grep", "Edit", "Write", "Agent", "Bash") `
         -WorkingDirectory $RepoPath `
         -NoNewWindow -PassThru `
         -RedirectStandardInput $promptFile `

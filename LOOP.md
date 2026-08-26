@@ -54,11 +54,15 @@ overnight, not fine for a machine that sleeps or that Windows Update reboots.
   unattended overnight runs non-viable.
 - Set the machine's power plan to never sleep (at least while plugged in) for
   the duration of any overnight run — `loop.ps1` cannot survive a sleep cycle.
-- `--permission-mode dontAsk` has to actually cover everything a work cycle
-  needs, since a headless `-p` process has no one to answer a permission
-  prompt — it would just hang until `-TimeoutMinutes` kills it, burning a
-  whole cycle for nothing. Run one short, low-stakes scope first and watch
-  `loop.log` before trusting a scope to run all night unsupervised.
+- `loop.ps1` invokes `claude -p` with `--permission-mode dontAsk` plus an
+  explicit `--allowedTools` list covering everything LOOP.md's protocol uses
+  (Read, Glob, Grep, Edit, Write, Agent, Bash). This was verified empirically,
+  not assumed: `dontAsk` alone denies every write/exec tool outright rather
+  than hanging on a prompt nobody can answer — "don't ask" means "default to
+  deny," not "auto-approve." If a future cycle needs a tool not in that list,
+  it fails the same way: cleanly, with a text explanation of what was denied,
+  not a hang. Run one short, low-stakes scope first and read `loop.log` for
+  exactly this failure mode before trusting a scope to run all night.
 
 ---
 
