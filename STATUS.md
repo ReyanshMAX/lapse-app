@@ -1,17 +1,20 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 4 of 9 — Tagging: segment list and slider. **In progress** —
-all Phase 4 scope built and green on CI (branch `phase-4-tagging`). Criteria
-1–2 (`[ci]`) checked; 3–4 (`[device]`/`[eyes-on]`) await developer
-verification.
-**Next action:** Developer — sideload the latest `phase-4-tagging` build and
-check BUILD.md Phase 4 criterion 3 (end a session with ≥2 clips → the Tagging
-screen's segment list shows exactly one row per finalized clip; the debug log
-prints `seeded N tag range(s)`) and criterion 4 (Slider mode → drag a boundary
-handle on a long multi-clip session: it should track the finger and the
-adjacent segment durations update live, no stutter). If both pass, check the
-boxes and move Phase 4 to Done. Otherwise begin Phase 5 (library + stats).
+**Current phase:** 5 of 9 — Library and stats (not started). Phases 0–4 are
+**complete**. Phase 4 merged to `main` (fast-forward, at `88b890f`) and all
+six criteria signed off by the developer 2026-08-27.
+**Next action:** Start Phase 5 per BUILD.md — library grid + session detail
+sheet + delete (rows *and* directory together), re-export from a past session,
+stats (totals / streak via `dayKey` / per-tag split / calendar heatmap /
+explicit untagged band), orphaned-directory sweep on launch, manual per-session
+source-clip purge (D-005). Depends on Phases 3 and 4, both done. docs/UI.md §7
+and §8 are the screen specs; `ClipsDebugView` is the throwaway this replaces.
+
+**UI note (developer, 2026-08-27):** the tagging screens (and every screen so
+far) are functional-only — no design tokens, no polish. Visual work is
+deliberately deferred; docs/UI.md §"Design tokens" + Phase 7 own it. Don't
+treat the current look as a baseline to preserve.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -80,9 +83,15 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 4 — Tagging: segment list and slider.** Code-complete, green on CI;
-  only the two device/eyes-on criteria remain (see *Needs developer
-  verification*).
+- Nothing. Phase 4 is complete (see Done). Phase 5 not started.
+
+## Done
+
+- **Phase 4 — Tagging: segment list and slider** (2026-08-27) — all six
+  criteria signed off by the developer; merged to `main` (fast-forward,
+  `88b890f`). Criteria 1–2 (`[ci]`) green on CI; 3 (`[device]`, proven by
+  `TagRangeSeedingTests`) and 4 (`[eyes-on]`, slider drag) accepted on the
+  developer's review of the sideloaded branch build.
   - **`TagRangeSeeding.ensureSeeded`** (`StudyLapse/Model/`) — seeds one
     `.segment` `TagRange` per finalized clip, tiling `[0, totalStudySeconds)`,
     via `TagRangeMath.seed`. Repairing, not one-shot: called from
@@ -116,8 +125,10 @@ streaming, Instruments, and any paid-program entitlement.
   - The `ClipsDebugView` "Export this session" link stays as a re-export path
     for device testing — intentional, not the "replaced" state the old Next
     action anticipated.
-
-## Done
+  - Known rough edge (cosmetic, not blocking): `TagSliderView`'s per-segment
+    tag label is positioned with a hand-rolled offset and will read wrong on
+    some layouts — the drag handles (criterion 4) are correct. UI polish is
+    Phase 7 / a later pass.
 
 - **Phase 3 — Export with a burned-in timer, saved to Photos** (2026-08-27) —
   all six acceptance criteria confirmed on device 2026-08-27 (developer
@@ -206,47 +217,27 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Phase 4 — tagging (segment list + slider over `TagRange`, consuming the
-   already-built `TagRangeMath`; `Tag` entity with autocomplete). This is also
-   where the real End-session → Tagging → Export flow replaces the debug
-   "Export this session" entry point in `ClipsDebugView`.
+1. Phase 5 — library and stats (grid, session detail sheet, delete rows +
+   directory together, re-export, stats with `dayKey` streak / per-tag split /
+   heatmap / untagged band, orphaned-directory launch sweep, manual source
+   purge D-005). Replaces `ClipsDebugView`. Depends on Phases 3 and 4 (done).
 
 ## Needs developer verification
 
-**Phase 4 (sideload the latest `phase-4-tagging` build):**
+Nothing open. Phase 4's six criteria were signed off 2026-08-27; Phase 3's on
+the same day.
 
-- **Criterion 3 `[device]` — ending a session seeds exactly one range per
-  finalized clip.** Record a session with at least 2 clips (record, pause,
-  resume, record, End Session). On End the Tagging screen opens: its segment
-  list must show exactly one row per finalized clip, contiguous, covering the
-  whole session. The debug log should show `seeded N tag range(s)` with N ==
-  the clip count. Proven in CI by `TagRangeSeedingTests` (pure model math, no
-  device-specific behaviour — same `[device]`-tag conflict already logged for
-  Phase 2 criteria 2/3/4); a green simulator run may be enough for sign-off,
-  developer's call.
-- **Criterion 4 `[eyes-on]` — slider handle drag on a long session.** In the
-  Tagging screen switch to Slider mode. Dragging a boundary handle should move
-  the boundary smoothly under the finger and the two adjacent segment
-  durations (shown for the selected segment / in the list) should update live.
-  Split halves the selected segment; Merge → folds it right. No stutter on a
-  session with many ranges (the drag mutates memory only and persists once on
-  release).
-
-Also worth a look (not blocking): the End → Tagging → Export hand-off — End
-Session should present tagging as a full-screen cover, Continue to Export should
-reach the existing export screen with the session's tags available, Close
-should dismiss leaving ranges untagged (a valid state).
-
-Phase 3's six device/eyes-on criteria were all confirmed on 2026-08-27.
-
-Known limitations from Phase 3 (not bugs, revisit later):
+Known limitations (not bugs, revisit later):
+- Every screen so far is functional-only — no design tokens, no polish.
+  Deliberate; docs/UI.md §"Design tokens" + Phase 7. Not a baseline to preserve.
 - The final timer value (session total) is visible for the last frame only;
   the penultimate value fills the rest of the tail. Smooth later if it reads
   wrong.
-- The export screen is reached from the debug clip browser, not a real flow —
-  Phase 4 adds End-session → Tagging → Export.
+- The export screen is now reached via End Session → Tagging → Export (Phase 4)
+  *and* still from the `ClipsDebugView` link (kept as a re-export path).
 - `intro`/`outro` card toggles exist in the UI and render, but the card text
   is minimal (date / total / tags) — polish is Phase 7.
+- `TagSliderView` per-segment tag label positioning is rough (see Phase 4 Done).
 
 Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
@@ -738,8 +729,9 @@ Newest last. One line per session: date, what moved, how it ended.
   now carries display strings, `setTags` still normalises for storage. Advisor
   pass up front caught the seeding race (async rollover-clip persistence vs.
   `end()`) — seeding made repairing, not one-shot. Five Deviations logged (`lastEndedSession`, repairing seed, derived
-  `useCount`, explicit slider Split/Merge, kept debug export link). **Phase 4
-  stays *In progress*** — criteria 1–2 (`[ci]`) green, 3 (`[device]`, proven in
-  CI) and 4 (`[eyes-on]`) written up under *Needs developer verification*. Repo
-  green. Next agent action: fix anything the device checks surface, else
-  Phase 5 (library + stats).
+  `useCount`, explicit slider Split/Merge, kept debug export link). Developer
+  reviewed the sideloaded branch build, signed off all six criteria, and asked
+  for the merge. Fast-forwarded to `main` (`88b890f`), boxes checked, **Phase 4
+  complete**, moved to Done. Developer flagged that the tagging UI (and every
+  screen so far) needs a real design pass in a later phase — noted as a known
+  limitation. Next: Phase 5 (library + stats).

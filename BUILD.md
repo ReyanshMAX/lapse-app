@@ -341,12 +341,13 @@ StudyLapseCore/Sources/StudyLapseCore/TagRangeMath.swift
       range
       — `TagRangeMathTests.testResizeNeverProducesDegenerateRangeOverRandomSequences`
       (50 trials × 400 ops, splits interleaved), green on CI run 33052241705
-- [ ] `[device]` ending a session seeds exactly one range per finalized clip
+- [x] `[device]` ending a session seeds exactly one range per finalized clip
       — proven in CI by `TagRangeSeedingTests` (pure model math, no
       device-specific behaviour; same `[device]`-tag conflict as Phase 2's
-      criteria 2/3/4). Awaiting developer sign-off.
-- [ ] `[eyes-on]` dragging a slider handle on a 9-hour session moves the boundary
+      criteria 2/3/4). Developer sign-off 2026-08-27.
+- [x] `[eyes-on]` dragging a slider handle on a 9-hour session moves the boundary
       smoothly and the adjacent durations update live
+      — developer confirmed on device 2026-08-27.
 
 **Depends on:** Phase 2
 
