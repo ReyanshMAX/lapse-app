@@ -1,15 +1,14 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 5 of 11 — Library and stats (not started). Phases 0–4 are
-**complete**. Phase 4 merged to `main` (fast-forward, at `88b890f`) and all
-six criteria signed off by the developer 2026-08-27.
-**Next action:** Start Phase 5 per BUILD.md — library grid + session detail
-sheet + delete (rows *and* directory together), re-export from a past session,
-stats (totals / streak via `dayKey` / per-tag split / calendar heatmap /
-explicit untagged band), orphaned-directory sweep on launch, manual per-session
-source-clip purge (D-005). Depends on Phases 3 and 4, both done. docs/UI.md §7
-and §8 are the screen specs; `ClipsDebugView` is the throwaway this replaces.
+**Current phase:** 5 of 11 — Library and stats. **Code-complete and merged to
+`main`** (PR #2, merge `98bb769`); all four CI jobs green on the branch. All
+five acceptance criteria are `[device]`/`[eyes-on]` — none checked; written up
+under *Needs developer verification* with the CI test that proves four of them.
+Phases 0–4 complete.
+**Next action:** Developer sideloads the current `main` build and runs the five
+checks under *Needs developer verification*. Pass → check the boxes, move Phase
+5 to Done. Fail → fix. Then Phase 6 (voiceover) per BUILD.md. Nothing blocked.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
 far) are functional-only — no design tokens, no polish. Visual work is
@@ -83,7 +82,34 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- Nothing. Phase 4 is complete (see Done). Phase 5 not started.
+- **Phase 5 — Library and stats** — code-complete, merged to `main` (PR #2,
+  `98bb769`), all four CI jobs green. Three feature commits:
+  1. `StudyLapseCore/Stats.swift` — `currentStreak` / `longestStreak` over
+     `dayKey` strings, `perTagSplit` (multi-tag ranges split their duration
+     evenly among their tags, so the docs/UI.md §8 single bar partitions the
+     total) with an explicit untagged band, `recentDayKeys` for the heatmap
+     grid. `StatsTests` in the `core` job. Two unspecified bits logged as
+     **Q-007** (multi-tag attribution, streak-current-through-yesterday).
+  2. `Session.sourcesPurgedAt: Date?` (lightweight-migratable) + `canReExport`;
+     docs/DATA_MODEL.md updated same commit. `SessionStorage` (new,
+     `Storage/`): `deleteSession` (SwiftData rows + on-disk directory
+     together), `purgeSources` (D-005 — deletes `clips/` files, keeps every
+     `Clip` row since `frameCount` / `studyOffsetStart` feed all stats and tag
+     ranges, stamps the date), `sweepOrphanedDirectories` (UUID-named children
+     of `sessions/` with no matching row; leaves unparseable names and
+     everything outside `sessions/` strictly alone). `ExportError.sourcesPurged`
+     + a guard in `ExportCoordinator.buildPlan`; the sweep runs in
+     `SessionCoordinator.recoverOnLaunch`. `SessionStorageTests` in the
+     `simulator` job (real directories) covers criteria 1–3.
+  3. `LibraryView` (grid of finished sessions — thumbnail / date / study time /
+     tag names), `SessionDetailView` (session info, tag ranges + edit-tags,
+     clip list w/ tap-to-play, exports w/ preview + share, re-export hidden
+     once purged, Purge / Delete behind `confirmationDialog`), `StatsView`
+     (totals, current + longest streak, per-tag split bar + untagged band,
+     12-week calendar heatmap), `ThumbnailProvider` (lazy first frame of clip
+     000, cached to `sessions/<id>/thumbnail.jpg`). `RecordView` toolbar now
+     opens `LibraryView`; `ClipsDebugView` **deleted** (this replaced it),
+     `DebugLogView` untouched.
 
 ## Done
 
