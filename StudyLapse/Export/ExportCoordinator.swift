@@ -12,6 +12,7 @@ import SwiftData
 final class ExportCoordinator {
     private(set) var progress: Double?
     private(set) var lastExportURL: URL?
+    private(set) var lastExportRecord: ExportRecord?
     private(set) var lastError: String?
     private(set) var isExporting = false
 
@@ -63,9 +64,16 @@ final class ExportCoordinator {
         defer { isExporting = false }
 
         do {
+            // Settle the revision before the record is written, so this
+            // export's `ExportRecord.profileRevision` reflects the current
+            // settings and any voiceover takes recorded over it stamp correctly
+            // (docs/DATA_MODEL.md).
+            if profile.reconcileRevision() { try? context.save() }
+
             let plan = try Self.buildPlan(session: session, profile: profile)
+            let takes = VoiceoverCoordinator.exportSnapshots(session: session, profile: profile)
             let url = try await exporter.export(
-                ExportRequest(plan: plan),
+                ExportRequest(plan: plan, voiceoverTakes: takes),
                 progress: { [weak self] value in self?.progress = value })
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -79,6 +87,7 @@ final class ExportCoordinator {
             context.insert(record)
             try? context.save()
 
+            lastExportRecord = record
             lastExportURL = url
             progress = 1
             DebugLog.write("Export", "wrote \(url.lastPathComponent), \(plan.outputDuration)s, \(size) bytes")

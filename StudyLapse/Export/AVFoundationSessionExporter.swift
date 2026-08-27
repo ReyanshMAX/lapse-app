@@ -34,17 +34,21 @@ final class AVFoundationSessionExporter: SessionExporter {
         /// The silent-track source file. It is referenced by the composition
         /// and must stay on disk until the render finishes.
         let silentAudioURL: URL?
+        /// The voiceover mix (50 ms edge fades per take), or nil when there are
+        /// no takes. `render()` sets it on the export session; CI inspects it.
+        let audioMix: AVMutableAudioMix?
     }
 
     func export(_ request: ExportRequest,
                 progress: @escaping (Double) -> Void) async throws -> URL {
         isCancelled = false
-        let prepared = try await prepare(request.plan)
+        let prepared = try await prepare(request.plan, voiceoverTakes: request.voiceoverTakes)
         defer { prepared.silentAudioURL.map { try? FileManager.default.removeItem(at: $0) } }
         return try await render(prepared, sessionID: request.plan.sessionID, progress: progress)
     }
 
-    func prepare(_ plan: ExportPlan) async throws -> Prepared {
+    func prepare(_ plan: ExportPlan,
+                 voiceoverTakes: [VoiceoverTakeSnapshot] = []) async throws -> Prepared {
         guard !plan.clips.isEmpty else { throw ExportError.noFinalizedClips }
 
         // MARK: 1 — compose video
@@ -106,6 +110,14 @@ final class AVFoundationSessionExporter: SessionExporter {
                                            of: silentTrack, at: .zero)
         }
 
+        // MARK: 3b — voiceover takes (Phase 6, docs/EXPORT.md "Voiceover
+        // mixing"). Positioned on the OUTPUT timeline, inserted after the speed
+        // scale so they are not scaled. Overlaps resolved keep-newer; a 50 ms
+        // linear fade at each edge via `AVMutableAudioMix`.
+        let audioMix = try await buildVoiceoverMix(voiceoverTakes,
+                                                   into: composition,
+                                                   outputDuration: outputDuration)
+
         try checkCancelled()
 
         // MARK: 4 — video composition + centre-crop transform
@@ -143,7 +155,78 @@ final class AVFoundationSessionExporter: SessionExporter {
 
         return Prepared(composition: composition, videoComposition: videoComposition,
                         overlay: overlay, outputDuration: outputDuration,
-                        silentAudioURL: silentURL)
+                        silentAudioURL: silentURL, audioMix: audioMix)
+    }
+
+    /// Adds one composition audio track per voiceover take, inserted at the
+    /// take's `outputStartSeconds`, and returns an `AVMutableAudioMix` giving
+    /// each a 50 ms fade in and out. Returns nil when there are no takes.
+    ///
+    /// The mix parameters are keyed to the **composition** track (the one just
+    /// inserted into), never the source asset track — an input-parameters object
+    /// built from the source track is a silent no-op with no error anywhere.
+    private func buildVoiceoverMix(_ takes: [VoiceoverTakeSnapshot],
+                                   into composition: AVMutableComposition,
+                                   outputDuration: Double) async throws -> AVMutableAudioMix? {
+        let resolved = resolvedTakes(takes)
+        guard !resolved.isEmpty else { return nil }
+
+        var parameters: [AVMutableAudioMixInputParameters] = []
+        for take in resolved {
+            let asset = AVURLAsset(url: take.url)
+            let audioTracks = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
+            guard let source = audioTracks.first else {
+                DebugLog.write("Export", "voiceover: take \(take.id) has no audio track, skipped")
+                continue
+            }
+            guard let dest = composition.addMutableTrack(
+                withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
+
+            let assetDuration = (try? await asset.load(.duration)) ?? .zero
+            let headroom = max(outputDuration - take.outputStartSeconds, 0)
+            let wanted = CMTime(seconds: min(take.durationSeconds, headroom), preferredTimescale: 600)
+            let usable = CMTimeMinimum(assetDuration, wanted)
+            guard usable.seconds > 0.01 else { continue }
+
+            let at = CMTime(seconds: take.outputStartSeconds, preferredTimescale: 600)
+            try dest.insertTimeRange(CMTimeRange(start: .zero, duration: usable), of: source, at: at)
+
+            let params = AVMutableAudioMixInputParameters(track: dest)
+            let fade = VoiceoverTimeline.fade(start: take.outputStartSeconds,
+                                              duration: usable.seconds)
+            params.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1,
+                                 timeRange: CMTimeRange(start: sec(fade.inStart),
+                                                        duration: sec(fade.inEnd - fade.inStart)))
+            params.setVolumeRamp(fromStartVolume: 1, toEndVolume: 0,
+                                 timeRange: CMTimeRange(start: sec(fade.outStart),
+                                                        duration: sec(fade.outEnd - fade.outStart)))
+            parameters.append(params)
+        }
+
+        guard !parameters.isEmpty else { return nil }
+        let mix = AVMutableAudioMix()
+        mix.inputParameters = parameters
+        DebugLog.write("Export", "voiceover: mixed \(parameters.count) take(s)")
+        return mix
+    }
+
+    /// Export-time overlap backstop — the UI prevents overlaps at creation, but
+    /// keep the newer take and log if any slipped through (docs/EXPORT.md).
+    private func resolvedTakes(_ takes: [VoiceoverTakeSnapshot]) -> [VoiceoverTakeSnapshot] {
+        let timeline = takes.map {
+            VoiceoverTimeline.Take(id: $0.id, start: $0.outputStartSeconds,
+                                   duration: $0.durationSeconds, createdAt: $0.createdAt)
+        }
+        let keptIDs = Set(VoiceoverTimeline.resolveOverlaps(timeline).map(\.id))
+        if keptIDs.count != takes.count {
+            DebugLog.write("Export", "voiceover: dropped \(takes.count - keptIDs.count) overlapping take(s)")
+        }
+        return takes.filter { keptIDs.contains($0.id) }
+            .sorted { $0.outputStartSeconds < $1.outputStartSeconds }
+    }
+
+    private func sec(_ seconds: Double) -> CMTime {
+        CMTime(seconds: max(seconds, 0), preferredTimescale: 600)
     }
 
     // MARK: Render
@@ -165,6 +248,7 @@ final class AVFoundationSessionExporter: SessionExporter {
                 continue
             }
             exporter.videoComposition = prepared.videoComposition
+            exporter.audioMix = prepared.audioMix
             exporter.outputURL = outURL
             exporter.outputFileType = .mov
             exporter.shouldOptimizeForNetworkUse = true

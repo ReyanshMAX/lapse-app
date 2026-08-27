@@ -104,6 +104,23 @@ final class ExportTests: XCTestCase {
         return prepared
     }
 
+    /// A real short audio file on disk plus its snapshot, for voiceover-mix
+    /// tests. LPCM `.caf` (via `SilentAudio`) is readable by `AVURLAsset`.
+    private func takeSnapshot(start: Double, duration: Double,
+                              createdAt: Date = .now) throws -> VoiceoverTakeSnapshot {
+        let url = try SilentAudio.makeFile(duration: duration)
+        scratchURLs.append(url)
+        return VoiceoverTakeSnapshot(id: UUID(), url: url, outputStartSeconds: start,
+                                     durationSeconds: duration, createdAt: createdAt)
+    }
+
+    private func audioTrackStarts(_ prepared: AVFoundationSessionExporter.Prepared) -> [Double] {
+        prepared.composition.tracks
+            .filter { $0.mediaType == .audio }
+            .map { $0.timeRange.start.seconds }
+            .sorted()
+    }
+
     private func textStrings(in layer: CALayer) -> [String] {
         var out: [String] = []
         if let t = layer as? CATextLayer, let s = t.string as? String { out.append(s) }
@@ -276,6 +293,64 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(plan.clips.count, 2)
         XCTAssertGreaterThan(plan.totalStudySeconds, 0)
         XCTAssertEqual(plan.aspect, .portrait9x16)
+    }
+
+    // MARK: Phase 6 — voiceover mix (criteria 1 / 2 logic)
+
+    func testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions() async throws {
+        let session = try await makeSession(clipCount: 3, framesPerClip: 60)
+        let plan = try ExportCoordinator.buildPlan(session: session, profile: profile(session))
+        let takes = [try takeSnapshot(start: 0.5, duration: 1.0),
+                     try takeSnapshot(start: 2.0, duration: 0.8)]
+
+        let prepared = try await AVFoundationSessionExporter().prepare(plan, voiceoverTakes: takes)
+        if let url = prepared.silentAudioURL { scratchURLs.append(url) }
+
+        let audioTracks = prepared.composition.tracks.filter { $0.mediaType == .audio }
+        XCTAssertEqual(audioTracks.count, 3, "one silent track (D-014) + one per take")
+
+        // The take tracks start at exactly their output position (±1 frame).
+        let starts = audioTrackStarts(prepared)
+        XCTAssertEqual(starts[1], 0.5, accuracy: 1.0 / 30)
+        XCTAssertEqual(starts[2], 2.0, accuracy: 1.0 / 30)
+
+        // The mix parameters are keyed to the COMPOSITION take tracks, never the
+        // source asset tracks — otherwise the fades are a silent no-op.
+        let mix = try XCTUnwrap(prepared.audioMix)
+        XCTAssertEqual(mix.inputParameters.count, 2)
+        let silent = try XCTUnwrap(audioTracks.first {
+            $0.timeRange.duration.seconds >= prepared.composition.duration.seconds - 0.1
+        })
+        let takeTrackIDs = Set(audioTracks.map(\.trackID)).subtracting([silent.trackID])
+        XCTAssertEqual(Set(mix.inputParameters.map(\.trackID)), takeTrackIDs)
+    }
+
+    func testOverlappingVoiceoverTakesAreResolvedKeepingTheNewer() async throws {
+        let session = try await makeSession(clipCount: 3, framesPerClip: 60)
+        let plan = try ExportCoordinator.buildPlan(session: session, profile: profile(session))
+        let older = try takeSnapshot(start: 0.5, duration: 1.5,
+                                     createdAt: Date(timeIntervalSince1970: 100))   // [0.5, 2.0)
+        let newer = try takeSnapshot(start: 1.5, duration: 1.0,
+                                     createdAt: Date(timeIntervalSince1970: 200))   // [1.5, 2.5)
+
+        let prepared = try await AVFoundationSessionExporter().prepare(plan, voiceoverTakes: [older, newer])
+        if let url = prepared.silentAudioURL { scratchURLs.append(url) }
+
+        let audioTracks = prepared.composition.tracks.filter { $0.mediaType == .audio }
+        XCTAssertEqual(audioTracks.count, 2, "silent + one surviving take")
+        XCTAssertEqual(prepared.audioMix?.inputParameters.count, 1)
+        let starts = audioTrackStarts(prepared)
+        XCTAssertEqual(starts.last!, 1.5, accuracy: 1.0 / 30, "the newer take survived")
+    }
+
+    func testNoVoiceoverTakesLeavesTheSingleSilentTrackAndNoMix() async throws {
+        let session = try await makeSession(clipCount: 2, framesPerClip: 60)
+        let plan = try ExportCoordinator.buildPlan(session: session, profile: profile(session))
+        let prepared = try await AVFoundationSessionExporter().prepare(plan)
+        if let url = prepared.silentAudioURL { scratchURLs.append(url) }
+
+        XCTAssertEqual(prepared.composition.tracks.filter { $0.mediaType == .audio }.count, 1)
+        XCTAssertNil(prepared.audioMix)
     }
 
     #if !targetEnvironment(simulator)
