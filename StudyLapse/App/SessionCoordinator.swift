@@ -129,6 +129,11 @@ final class SessionCoordinator {
                 await pause()
             }
         case .active:
+            // Re-assert the screen-on lock. iOS can clear
+            // `isIdleTimerDisabled` across an app switch, and a transient
+            // `.inactive` blip that didn't complete a real pause would
+            // otherwise leave us recording with the screen free to sleep.
+            if status == .recording { setIdleTimerDisabled(true) }
             evaluateAutoClose()
         @unknown default:
             break
@@ -325,9 +330,14 @@ final class SessionCoordinator {
         }
     }
 
+    /// Keeps the display awake while recording (D-018 / docs/CAPTURE.md screen
+    /// dimming). Must run on the main thread — this type is `@MainActor`.
     private func setIdleTimerDisabled(_ disabled: Bool) {
         #if canImport(UIKit)
+        guard UIApplication.shared.isIdleTimerDisabled != disabled else { return }
         UIApplication.shared.isIdleTimerDisabled = disabled
+        DebugLog.write("Session", "idle timer disabled = \(disabled) "
+            + "(screen \(disabled ? "held on" : "may sleep"))")
         #endif
     }
 }
