@@ -95,6 +95,12 @@ streaming, Instruments, and any paid-program entitlement.
     `stopRecording`, rollover chunks delivered via `onClipFinalized`. Single
     `FinalizedClip` value type crosses the queue boundary, never a `@Model`.
     `SyntheticFrameSource` now has a monotonic tick cursor across `emit` calls.
+  - **Insert-on-open** — `CaptureController` fires `onClipOpened` when a chunk's
+    writer is created; `SessionCoordinator` persists a `Clip` row with
+    `isFinalized == false` right then, so a force-quit before `finishWriting`
+    leaves a row for recovery (matches docs/CAPTURE.md's launch-recovery flow,
+    which assumes such rows exist). Clean stop flips the row to finalized or
+    prunes it if the chunk got zero frames.
   - **`ClipRecovery`** — `recoverUnfinalized` repairs or deletes
     `isFinalized == false` rows from whatever `AVURLAsset` can still read;
     `demoteRecordingSessions` moves `.recording` → `.paused` at launch.
@@ -463,3 +469,14 @@ Newest last. One line per session: date, what moved, how it ended.
   with exact repro steps. Session ended cleanly with the repo green; next
   agent action is Phase 3 once the developer signs off, or fixing any
   device-check failures they report.
+- 2026-08-27 (same session, second-opinion follow-up) — a review pass flagged
+  two gaps: (1) `resume()` could silently no-op (plain `return` guards) leaving
+  the record button dead with no feedback — changed to throw `.noSession` /
+  `.notResumable` so `RecordView` surfaces it; (2) criterion 3's recovery test
+  truncated a *cleanly finalized* file, but a real force-quit leaves **no row
+  at all** for the in-flight chunk, so `recoverUnfinalized`'s core branch was
+  dead code in production. Fixed with insert-on-open (`onClipOpened` →
+  unfinalized `Clip` row) so recovery is actually reachable, matching
+  docs/CAPTURE.md's flow. Added `testForceQuitMidChunkIsResolvedByRecovery`
+  (drops the coordinator mid-chunk, no pause/end) and an opened-index assertion
+  to the rollover test. docs/CAPTURE.md updated. Still green.

@@ -28,6 +28,7 @@ drives it and persists each finalized chunk on the main actor. The
 `CameraFrameSource`, not here.
 
 ```swift
+struct OpenedClip: Sendable    { let index: Int; let url: URL }
 struct FinalizedClip: Sendable { let index: Int; let url: URL; let frameCount: Int }
 
 final class CaptureController {
@@ -43,14 +44,21 @@ final class CaptureController {
     func startRecording(firstClipIndex: Int,
                         urlForClip: @escaping @Sendable (Int) -> URL,
                         intervalSeconds: Double, outputFrameRate: Int32,
+                        onClipOpened: @escaping @Sendable (OpenedClip) -> Void,
                         onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void) throws
-    func stopRecording() async   // finalizes the current chunk via onClipFinalized
+    func stopRecording() async -> FinalizedClip?   // returns the trailing chunk
 }
 ```
 
-`onClipFinalized` fires on the writer's completion queue with a plain value —
-the coordinator wraps its body in `Task { @MainActor in … }` to persist the
-`Clip`. `@Model` types never cross the capture-queue boundary.
+`onClipOpened` fires the moment a chunk's writer is created — the coordinator
+persists a `Clip` row with `isFinalized == false` right then, so a force-quit
+before `finishWriting` still leaves a row for launch recovery. `onClipFinalized`
+fires on the writer's completion queue for **rollover** chunks; the **trailing**
+chunk is returned from `stopRecording` instead, so the coordinator persists it
+inside the same awaited call with no teardown race. Both carry plain values —
+`@Model` types never cross the capture-queue boundary. On a clean stop the
+coordinator flips the open row to finalized (or deletes it if the chunk got
+zero frames).
 
 - Preset `.hd1920x1080`. Do not use 4K: it triples file size and thermal load for
   output that is downscaled to 1080 or smaller anyway.
@@ -115,9 +123,12 @@ misjudge its pacing. Feed through an `AVAssetWriterInputPixelBufferAdaptor`.
 - Chunk rollover must not drop a frame: the frame that trips the threshold is
   routed into the new chunk as its frame 0, and the previous chunk's writer is
   finalized asynchronously so frames keep flowing.
-- On successful `finishWriting`, set `isFinalized = true`, persist `frameCount`,
-  recompute `studyOffsetStart` for the session, and write `ghost.jpg` from the
-  clip's last frame.
+- A `Clip` row is inserted with `isFinalized == false` when a chunk *opens*
+  (`onClipOpened`), so a crash before `finishWriting` still leaves a row.
+- On successful `finishWriting`, flip that row: `isFinalized = true`, persist
+  `frameCount`, recompute `studyOffsetStart` for the session. (`ghost.jpg` from
+  the clip's last frame is deferred to Phase 7 with the ghost overlay — see
+  STATUS.md Deviations.)
 - Worst-case loss on power failure is therefore one chunk (~2 minutes).
 
 ### Launch recovery
@@ -125,6 +136,7 @@ misjudge its pacing. Feed through an `AVAssetWriterInputPixelBufferAdaptor`.
 ```swift
 enum ClipRecovery {
     static func recoverUnfinalized(in context: ModelContext) async -> [Clip]
+    static func demoteRecordingSessions(in context: ModelContext) -> [Session]
 }
 ```
 

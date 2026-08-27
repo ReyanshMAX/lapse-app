@@ -128,6 +128,40 @@ final class SessionCoordinatorTests: XCTestCase {
         cleanupClipFiles()
     }
 
+    /// Criterion 3: a force-quit mid-chunk (no pause / no end) leaves an
+    /// unfinalized Clip row; `recoverOnLaunch` resolves it, moves the session
+    /// to `.paused`, and loses at most one chunk of study time.
+    func testForceQuitMidChunkIsResolvedByRecovery() async throws {
+        let sessionID: UUID
+        do {
+            let source = newSource()
+            let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
+            try coordinator.startNewSession()
+            source.emit(seconds: 45)             // 15 frames into a still-open chunk
+            await waitUntil({ ((try? self.context.fetch(FetchDescriptor<Clip>()))?.isEmpty == false) },
+                            "the opened clip row should persist before the crash")
+            sessionID = try XCTUnwrap(coordinator.session?.id)
+            // No pause(), no end(): the coordinator and its CaptureController are
+            // dropped here — a stand-in for the process being killed.
+        }
+
+        let beforeRecovery = try context.fetch(FetchDescriptor<Clip>())
+        XCTAssertTrue(beforeRecovery.contains { !$0.isFinalized },
+                      "a mid-chunk crash must leave an unfinalized row for recovery to find")
+
+        let relaunched = SessionCoordinator(context: context, makeFrameSource: { self.newSource() })
+        await relaunched.recoverOnLaunch()
+
+        let clips = try context.fetch(FetchDescriptor<Clip>())
+        XCTAssertFalse(clips.contains { !$0.isFinalized }, "recovery must resolve every unfinalized row")
+        XCTAssertEqual(relaunched.session?.id, sessionID)
+        XCTAssertEqual(relaunched.status, .paused)
+        XCTAssertLessThanOrEqual(45.0 - relaunched.studySeconds, CaptureController.maxSegmentSeconds,
+                                 "at most one chunk (120s) of study time may be lost")
+
+        cleanupClipFiles()
+    }
+
     func testStartingASecondSessionWhileActiveThrows() async throws {
         let source = newSource()
         let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })

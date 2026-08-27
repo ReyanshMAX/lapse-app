@@ -16,6 +16,15 @@ struct FinalizedClip: Sendable {
     let frameCount: Int
 }
 
+/// A chunk that has just been opened for writing. The caller persists a
+/// `Clip` row with `isFinalized == false` at this point so a force-quit
+/// mid-chunk leaves a row for `ClipRecovery` to repair or delete
+/// (docs/CAPTURE.md launch recovery).
+struct OpenedClip: Sendable {
+    let index: Int
+    let url: URL
+}
+
 /// Consumes a `FrameSource` — never owns `AVCaptureSession` directly (D-026).
 /// Gates incoming frames to `intervalSeconds` apart, synthesizes sequential
 /// output timestamps, and writes HEVC clips via `AVAssetWriter`.
@@ -72,6 +81,7 @@ final class CaptureController: @unchecked Sendable {
     private var rolloverEnabled = false
     private var nextIndex = 0
     private var urlForClip: (@Sendable (Int) -> URL)?
+    private var onClipOpened: (@Sendable (OpenedClip) -> Void)?
     private var onClipFinalized: (@Sendable (FinalizedClip) -> Void)?
 
     init(source: FrameSource, clock: Clock = SystemClock()) {
@@ -89,6 +99,7 @@ final class CaptureController: @unchecked Sendable {
             self.outputFrameRate = outputFrameRate
             self.lastAcceptedPTS = nil
             self.rolloverEnabled = false
+            self.onClipOpened = nil
             self.onClipFinalized = nil
             self.urlForClip = nil
         }
@@ -133,9 +144,11 @@ final class CaptureController: @unchecked Sendable {
         urlForClip: @escaping @Sendable (Int) -> URL,
         intervalSeconds: Double,
         outputFrameRate: Int32,
+        onClipOpened: @escaping @Sendable (OpenedClip) -> Void,
         onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void
     ) throws {
-        let segment = try makeSegment(url: urlForClip(firstClipIndex), index: firstClipIndex)
+        let firstURL = urlForClip(firstClipIndex)
+        let segment = try makeSegment(url: firstURL, index: firstClipIndex)
         queue.sync {
             self.current = segment
             self.intervalSeconds = intervalSeconds
@@ -144,8 +157,13 @@ final class CaptureController: @unchecked Sendable {
             self.rolloverEnabled = true
             self.nextIndex = firstClipIndex + 1
             self.urlForClip = urlForClip
+            self.onClipOpened = onClipOpened
             self.onClipFinalized = onClipFinalized
         }
+        // Announced before the first frame is handled, so the caller can get
+        // its unfinalized row in flight. Rollover chunks are announced from
+        // `rollOver` on the capture queue.
+        onClipOpened(OpenedClip(index: firstClipIndex, url: firstURL))
         attachFrameHandler()
         try source.start()
         DebugLog.write(
@@ -306,6 +324,7 @@ final class CaptureController: @unchecked Sendable {
             segment.started = true
             current = segment
             nextIndex = newIndex + 1
+            onClipOpened?(OpenedClip(index: newIndex, url: newURL))
             DebugLog.write("Capture", "rolled over to segment \(newIndex)")
         } catch {
             DebugLog.write("Capture", "rollover failed to open next segment: \(error)")

@@ -81,6 +81,7 @@ final class SessionCoordinator {
     func pause() async {
         guard status == .recording else { return }
         await stopCapture()
+        pruneUnfinalizedRows()
         status = .paused
         session?.status = .paused
         setIdleTimerDisabled(false)
@@ -91,7 +92,8 @@ final class SessionCoordinator {
     }
 
     func resume() throws {
-        guard status == .paused, let session else { return }
+        guard let session else { throw SessionCoordinatorError.noSession }
+        guard status == .paused else { throw SessionCoordinatorError.notResumable }
         let nextIndex = (session.clips.map(\.index).max() ?? -1) + 1
         status = .recording
         session.status = .recording
@@ -105,6 +107,7 @@ final class SessionCoordinator {
     func end() async {
         guard status != .ended else { return }
         await stopCapture()
+        pruneUnfinalizedRows()
         status = .ended
         session?.status = .ended
         session?.endedAt = Date()
@@ -179,6 +182,11 @@ final class SessionCoordinator {
             },
             intervalSeconds: interval,
             outputFrameRate: fps,
+            onClipOpened: { [weak self] opened in
+                Task { @MainActor [weak self] in
+                    self?.persistOpenedClip(opened)
+                }
+            },
             onClipFinalized: { [weak self] finalized in
                 Task { @MainActor [weak self] in
                     self?.persistFinalizedClip(finalized)
@@ -194,28 +202,90 @@ final class SessionCoordinator {
         if let trailingChunk { persistFinalizedClip(trailingChunk) }
     }
 
+    /// Insert a `Clip` row the moment a chunk opens, `isFinalized == false`, so
+    /// a force-quit before the writer finishes still leaves a row for
+    /// `ClipRecovery` to repair or delete (docs/CAPTURE.md).
+    private func persistOpenedClip(_ opened: OpenedClip) {
+        guard let session else { return }
+        guard !session.clips.contains(where: { $0.index == opened.index }) else { return }
+        let clip = Clip(session: session,
+                        index: opened.index,
+                        relativePath: StorageLocator.relativePath(for: opened.url),
+                        startedAt: Date(),
+                        frameCount: 0,
+                        studyOffsetStart: StudyOffsets.runningTotal(for: session),
+                        isFinalized: false)
+        context.insert(clip)
+        try? context.save()
+        DebugLog.write("Session", "opened clip row \(opened.index)")
+    }
+
     private func persistFinalizedClip(_ finalized: FinalizedClip) {
         guard let session else { return }
+
         // A rollover or stop can hand back a zero-frame trailing chunk — the
-        // controller already dropped its file, so drop the row too.
-        guard finalized.frameCount > 0 else { return }
+        // controller already dropped its file, so drop its opened row too.
+        guard finalized.frameCount > 0 else {
+            removeUnfinalizedRow(index: finalized.index)
+            return
+        }
 
         let relativePath = StorageLocator.relativePath(for: finalized.url)
-        let clip = Clip(session: session,
-                        index: finalized.index,
-                        relativePath: relativePath,
-                        startedAt: Date(),
-                        endedAt: Date(),
-                        frameCount: finalized.frameCount,
-                        studyOffsetStart: 0,
-                        isFinalized: true)
-        context.insert(clip)
+        if let existing = session.clips.first(where: { $0.index == finalized.index && !$0.isFinalized }) {
+            existing.relativePath = relativePath
+            existing.frameCount = finalized.frameCount
+            existing.endedAt = Date()
+            existing.isFinalized = true
+        } else {
+            // The open callback hasn't landed yet (or never will) — insert
+            // straight to finalized.
+            let clip = Clip(session: session,
+                            index: finalized.index,
+                            relativePath: relativePath,
+                            startedAt: Date(),
+                            endedAt: Date(),
+                            frameCount: finalized.frameCount,
+                            studyOffsetStart: 0,
+                            isFinalized: true)
+            context.insert(clip)
+        }
         StudyOffsets.recompute(for: session)
         try? context.save()
 
         clipCount = session.clips.filter(\.isFinalized).count
         if status != .recording { reconcileStudySeconds() }
         DebugLog.write("Session", "persisted clip \(finalized.index): \(finalized.frameCount) frames")
+    }
+
+    private func removeUnfinalizedRow(index: Int) {
+        guard let session else { return }
+        let rows = session.clips.filter { $0.index == index && !$0.isFinalized }
+        for row in rows { context.delete(row) }
+        if !rows.isEmpty {
+            session.clips.removeAll { $0.index == index && !$0.isFinalized }
+            try? context.save()
+        }
+    }
+
+    /// After capture has fully stopped, an `isFinalized == false` row whose
+    /// file the controller already deleted (a zero-frame chunk opened by a
+    /// rollover that was immediately stopped) is a dead orphan — remove it.
+    /// Rows backed by a real partial file are left for `ClipRecovery` on the
+    /// next launch, which is the only place that can safely read them back.
+    private func pruneUnfinalizedRows() {
+        guard let session else { return }
+        let orphans = session.clips.filter { clip in
+            guard !clip.isFinalized, clip.frameCount == 0 else { return false }
+            let url = StorageLocator.url(forRelativePath: clip.relativePath)
+            return !FileManager.default.fileExists(atPath: url.path)
+        }
+        guard !orphans.isEmpty else { return }
+        for orphan in orphans { context.delete(orphan) }
+        let orphanIDs = Set(orphans.map(\.id))
+        session.clips.removeAll { orphanIDs.contains($0.id) }
+        StudyOffsets.recompute(for: session)
+        try? context.save()
+        DebugLog.write("Session", "pruned \(orphans.count) dead unfinalized clip row(s) after stop")
     }
 
     // MARK: Study-time axis
@@ -265,4 +335,5 @@ final class SessionCoordinator {
 enum SessionCoordinatorError: Error {
     case sessionAlreadyActive
     case noSession
+    case notResumable
 }

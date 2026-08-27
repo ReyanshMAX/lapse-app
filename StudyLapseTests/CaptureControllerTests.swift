@@ -66,11 +66,13 @@ final class CaptureControllerTests: XCTestCase {
         let controller = CaptureController(source: source, clock: SystemClock())
         let collector = FinalizedCollector()
 
+        let openedIndices = FinalizedCollector.IndexBox()
         try controller.startRecording(
             firstClipIndex: 0,
             urlForClip: { index in dir.appendingPathComponent(String(format: "%03d.mov", index)) },
             intervalSeconds: 3,
             outputFrameRate: 30,
+            onClipOpened: { openedIndices.append($0.index) },
             onClipFinalized: { collector.append($0) }
         )
 
@@ -88,6 +90,8 @@ final class CaptureControllerTests: XCTestCase {
         let clips = collector.sortedByIndex()
         XCTAssertGreaterThanOrEqual(clips.count, 2, "expected at least one rollover")
         XCTAssertEqual(clips.map(\.index), Array(0..<clips.count), "chunk indices must be contiguous from 0")
+        XCTAssertEqual(openedIndices.values(), Array(0..<clips.count),
+                       "each chunk announces itself as opened before it finalizes")
         XCTAssertEqual(clips.reduce(0) { $0 + $1.frameCount }, 100, "rollover must not drop or duplicate a frame")
 
         for chunk in clips.dropLast() {
@@ -116,6 +120,14 @@ final class FinalizedCollector: @unchecked Sendable {
 
     func sortedByIndex() -> [FinalizedClip] {
         lock.withLock { clips.sorted { $0.index < $1.index } }
+    }
+
+    /// Ordered, thread-safe sink for opened-chunk indices.
+    final class IndexBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var indices: [Int] = []
+        func append(_ index: Int) { lock.withLock { indices.append(index) } }
+        func values() -> [Int] { lock.withLock { indices } }
     }
 
     func waitUntilTotalFrames(_ target: Int, timeout: TimeInterval) async -> Bool {
