@@ -33,24 +33,25 @@ final class ExportCoordinator {
                                        fps: session.outputFrameRate)
     }
 
-    /// True when the requested speed/target can't be met and the output is
-    /// clamped to the minimum-speed floor (docs/DATA_MODEL.md).
+    /// True when the requested net speed is slower than the minimum-speed floor
+    /// and the output has been clamped (so it's longer than asked for) —
+    /// docs/DATA_MODEL.md.
     static func isClampedToFloor(session: Session, profile: ExportProfile) -> Bool {
         let interval = session.captureIntervalSeconds
         let fps = session.outputFrameRate
         let total = session.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration }
+        guard total > 0 else { return false }
         let floor = TimeAxis.minimumSpeed(interval: interval, fps: fps)
 
-        let rawSpeed: Double
+        let requestedSpeed: Double
         switch speedMode(profile) {
         case .multiplier(let m):
-            rawSpeed = m
+            requestedSpeed = m
         case .fitToDuration(let target):
             guard target > 0 else { return false }
-            rawSpeed = TimeAxis.baseOutputSeconds(totalStudySeconds: total,
-                                                  interval: interval, fps: fps) / target
+            requestedSpeed = total / target
         }
-        return rawSpeed < floor - 1e-6
+        return requestedSpeed < floor - 1e-6
     }
 
     func export(session: Session, profile: ExportProfile) async {

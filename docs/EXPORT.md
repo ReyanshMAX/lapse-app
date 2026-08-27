@@ -137,8 +137,10 @@ directly rather than an `ExportProfile`, since the exporter never holds a
 ### Timer animation
 
 The timer displays **study time**, not output time. Because the composition is
-uniformly scaled, output time `t` maps to study time `t * speed * interval`.
-`CATextLayer` cannot animate its string, so generate discrete steps:
+uniformly scaled, output time `t` maps to study time `t * speed` (with `speed`
+the net real-time multiplier — see docs/DATA_MODEL.md), i.e. linearly from 0 to
+`totalStudySeconds` across `outputDuration`. `CATextLayer` cannot animate its
+string, so generate discrete steps:
 
 ```swift
 /// One keyframe per displayed value change. At a 1-minute display granularity a

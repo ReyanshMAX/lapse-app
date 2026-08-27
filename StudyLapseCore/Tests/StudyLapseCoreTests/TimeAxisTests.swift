@@ -14,76 +14,75 @@ final class TimeAxisTests: XCTestCase {
         XCTAssertEqual(TimeAxis.minimumSpeed(interval: 3, fps: 30), 90)
     }
 
-    func testFitToDurationClampsToMinimumSpeedFloor() {
-        // 9-hour session, 3s interval, 30fps: base output = 32400/3/30 = 360s.
-        // Requested 15s implies speed 24, below the 90x floor, so it clamps to 90.
-        let totalStudySeconds = 9 * 60 * 60.0
-        let speed = TimeAxis.speed(mode: .fitToDuration(targetSeconds: 15),
-                                    totalStudySeconds: totalStudySeconds,
-                                    interval: 3, fps: 30)
-        XCTAssertEqual(speed, 90)
+    // MARK: speed is net, real-time — a `multiplier` of N means "N× faster than
+    // you actually studied", NOT N× on top of the capture-interval compression.
+
+    func testMultiplierIsTheNetSpeedNotStackedOnTheInterval() {
+        // 1 h studied, 2 s interval (→ 60× floor), multiplier 100.
+        // Net speed must be 100×, so a 3600 s session → 36 s of video.
+        // (The bug this guards against gave 60 × 100 = 6000× → 0.6 s.)
+        let d = TimeAxis.outputDuration(mode: .multiplier(100),
+                                        totalStudySeconds: 3600,
+                                        interval: 2, fps: 30)
+        XCTAssertEqual(d, 36, accuracy: 1e-6)
+        XCTAssertEqual(TimeAxis.speed(mode: .multiplier(100), totalStudySeconds: 3600,
+                                      interval: 2, fps: 30), 100)
     }
 
     func testMultiplierAboveFloorIsUnchanged() {
-        let speed = TimeAxis.speed(mode: .multiplier(150),
-                                    totalStudySeconds: 1000,
-                                    interval: 3, fps: 30)
-        XCTAssertEqual(speed, 150)
+        XCTAssertEqual(TimeAxis.speed(mode: .multiplier(150), totalStudySeconds: 1000,
+                                      interval: 3, fps: 30), 150)
     }
 
     func testMultiplierBelowFloorClampsUp() {
-        let speed = TimeAxis.speed(mode: .multiplier(10),
-                                    totalStudySeconds: 1000,
-                                    interval: 3, fps: 30)
-        XCTAssertEqual(speed, 90)
+        XCTAssertEqual(TimeAxis.speed(mode: .multiplier(10), totalStudySeconds: 1000,
+                                      interval: 3, fps: 30), 90)
     }
 
-    // MARK: outputDuration — the number the export UI shows and the value the
-    // composition is scaled to (BUILD.md Phase 3 criterion 2).
-
-    func testOutputDurationForAMultiplier() {
-        // 480s study, 3s interval, 30fps: base output = 480/3/30 = 5.333s.
-        // Speed 100x is above the 90x floor, so output = 5.333 / 100.
-        let d = TimeAxis.outputDuration(mode: .multiplier(100),
-                                        totalStudySeconds: 480,
-                                        interval: 3, fps: 30)
-        XCTAssertEqual(d, (480.0 / 3 / 30) / 100, accuracy: 1e-9)
-    }
-
-    func testFitToDurationHitsTheRequestedDurationWhenAboveFloor() {
-        // Short interval so the min-speed floor doesn't bind and the request is
-        // honoured exactly. total = 32400s, interval 0.1, fps 30 →
-        // base = 32400 / 0.1 / 30 = 10800s. floor = 0.1 * 30 = 3x. requested
-        // speed for a 30s target = 10800 / 30 = 360x, well above the floor, so
-        // the output is exactly 30s.
-        let total = 9 * 3600.0
+    func testFitToDurationIsTheNetSpeedThatLandsTheTarget() {
+        // 9 h studied, fit to 30 s → net speed 32400 / 30 = 1080×, far above the
+        // 90× floor, so the output is exactly 30 s.
         let d = TimeAxis.outputDuration(mode: .fitToDuration(targetSeconds: 30),
-                                        totalStudySeconds: total,
-                                        interval: 0.1, fps: 30)
+                                        totalStudySeconds: 9 * 3600.0,
+                                        interval: 3, fps: 30)
         XCTAssertEqual(d, 30, accuracy: 1e-6)
     }
 
-    func testFitToDurationReportsTheClampedDurationNotTheRequest() {
-        // 9-hour, 3s interval, 30fps. Request fit-to-15s. Floor 90x binds, so
-        // the real output is base/90 = 360/90 = 4.0s, and the UI must show 4.0,
-        // never 15.
-        let total = 9 * 3600.0
-        let d = TimeAxis.outputDuration(mode: .fitToDuration(targetSeconds: 15),
-                                        totalStudySeconds: total,
+    func testFitToDurationClampsWhenTheTargetIsLongerThanPhysicallyPossible() {
+        // 20 min studied, 3 s interval (90× floor). Fit to 60 s implies a net
+        // speed of 1200 / 60 = 20×, below the floor → clamp to 90×, and the real
+        // output is 1200 / 90 ≈ 13.33 s, not 60.
+        let speed = TimeAxis.speed(mode: .fitToDuration(targetSeconds: 60),
+                                   totalStudySeconds: 1200,
+                                   interval: 3, fps: 30)
+        XCTAssertEqual(speed, 90)
+        let d = TimeAxis.outputDuration(mode: .fitToDuration(targetSeconds: 60),
+                                        totalStudySeconds: 1200,
                                         interval: 3, fps: 30)
-        XCTAssertEqual(d, 4.0, accuracy: 1e-6)
+        XCTAssertEqual(d, 1200.0 / 90.0, accuracy: 1e-6)
     }
 
-    func testOutputDurationIsConsistentWithSpeed() {
-        // base / speed == outputDuration, for any mode.
+    func testOutputDurationForAMultiplier() {
+        // 480 s studied, multiplier 100 (above the 90× floor) → 480 / 100 = 4.8 s.
+        let d = TimeAxis.outputDuration(mode: .multiplier(100),
+                                        totalStudySeconds: 480,
+                                        interval: 3, fps: 30)
+        XCTAssertEqual(d, 4.8, accuracy: 1e-9)
+    }
+
+    func testOutputDurationIsAlwaysTotalOverSpeed() {
         let total = 1234.0
         for mode in [SpeedMode.multiplier(120), .multiplier(5),
-                     .fitToDuration(targetSeconds: 8), .fitToDuration(targetSeconds: 1)] {
-            let base = TimeAxis.baseOutputSeconds(totalStudySeconds: total, interval: 3, fps: 30)
+                     .fitToDuration(targetSeconds: 8), .fitToDuration(targetSeconds: 400)] {
             let speed = TimeAxis.speed(mode: mode, totalStudySeconds: total, interval: 3, fps: 30)
             let d = TimeAxis.outputDuration(mode: mode, totalStudySeconds: total, interval: 3, fps: 30)
-            XCTAssertEqual(d, base / speed, accuracy: 1e-9)
+            XCTAssertEqual(d, total / speed, accuracy: 1e-9)
         }
+    }
+
+    func testNativeOutputSecondsIsTotalOverFloor() {
+        XCTAssertEqual(TimeAxis.nativeOutputSeconds(totalStudySeconds: 1800, interval: 3, fps: 30),
+                       1800.0 / 90.0, accuracy: 1e-9)
     }
 
     func testOutputDurationZeroForEmptySession() {

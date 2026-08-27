@@ -78,8 +78,8 @@ private struct ExportControls: View {
                         Text("60s").tag(60.0)
                     }
                 } else {
-                    Stepper(value: $profile.speedMultiplier, in: 10...600, step: 10) {
-                        Text("\(Int(profile.speedMultiplier))×")
+                    Stepper(value: $profile.speedMultiplier, in: 30...1200, step: 30) {
+                        Text("\(Int(profile.speedMultiplier))× real time")
                     }
                 }
             }

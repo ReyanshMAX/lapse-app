@@ -80,9 +80,11 @@ final class ExportTests: XCTestCase {
 
     /// A detached `ExportProfile` — `ExportCoordinator.buildPlan` takes the
     /// profile explicitly and only reads it, so it needn't be inserted.
+    /// Default multiplier 6 is above the fixtures' 3× floor (interval 0.1 / fps
+    /// 30), so the composition is actually speed-scaled.
     private func profile(_ session: Session,
                          speedModeRaw: String = "multiplier",
-                         speedMultiplier: Double = 3,
+                         speedMultiplier: Double = 6,
                          targetDurationSeconds: Double = 30,
                          aspectRaw: String = "portrait9x16",
                          overlayCornerRaw: String = "topRight") -> ExportProfile {
@@ -112,7 +114,7 @@ final class ExportTests: XCTestCase {
     // MARK: Criteria 1 / 2 / 3 / 6 — the composition graph
 
     func testCompositionMatchesComputedDurationWithOneFullLengthAudioTrack() async throws {
-        // 3 clips × ~60 frames → study ~18s, base ~6s, 3x → ~2s output.
+        // 3 clips × ~60 frames → study ~18s; native ~6s; net 6× → ~3s output.
         let session = try await makeSession(clipCount: 3, framesPerClip: 60)
         let exportProfile = profile(session)
         let prepared = try await prepare(session, exportProfile)
@@ -133,8 +135,8 @@ final class ExportTests: XCTestCase {
     }
 
     func testFitToDurationClampsAndTheReportedDurationIsTheComposedDuration() async throws {
-        // ~225 frames, study ~22.5s, base ~7.5s. fit-to-15s → raw speed 0.5,
-        // below the 3x floor → clamps; composed output ≈ 7.5 / 3 = 2.5s.
+        // ~225 frames → study ~22.5s. fit-to-15s → net speed 22.5/15 = 1.5×,
+        // below the 3× floor → clamps to 3×; real output ≈ 22.5 / 3 = 7.5s.
         let session = try await makeSession(clipCount: 3, framesPerClip: 75)
         let exportProfile = profile(session, speedModeRaw: "fitToDuration", targetDurationSeconds: 15)
 

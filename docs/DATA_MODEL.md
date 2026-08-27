@@ -159,20 +159,35 @@ enum TimeAxis {
         session.clips.filter(\.isFinalized).reduce(0) { $0 + $1.studyDuration }
     }
 
-    /// Effective speed multiplier for an export profile.
+    /// The exported video's NET speed relative to real study time: `speed == 100`
+    /// means the video plays 100x faster than the user actually studied. This is
+    /// the axis the user picks on and the number the UI shows — it is NOT an
+    /// extra multiplier stacked on top of the capture-interval compression.
+    /// Clamped to `minimumSpeed` (below).
     static func speed(profile: ExportProfile, totalStudySeconds: Double,
                       interval: Double, fps: Int32) -> Double {
-        let baseOutput = totalStudySeconds / interval / Double(fps)  // seconds at 1x composition
+        let floor = interval * Double(fps)                 // minimumSpeed
         switch profile.speedModeRaw {
-        case "fitToDuration": return baseOutput / profile.targetDurationSeconds
-        default:              return profile.speedMultiplier
+        case "fitToDuration":
+            return max(totalStudySeconds / profile.targetDurationSeconds, floor)
+        default:
+            return max(profile.speedMultiplier, floor)
         }
     }
 
-    /// Map an output-video timestamp to study seconds. Used to drive the overlay timer.
-    static func outputToStudy(_ outputSeconds: Double, speed: Double,
-                              interval: Double, fps: Int32) -> Double {
-        outputSeconds * speed * Double(fps) * interval / Double(fps)
+    /// Exported-file duration: `totalStudySeconds / speed`. Both the UI figure
+    /// and the `AVMutableComposition.scaleTimeRange(toDuration:)` target read
+    /// this (see docs/EXPORT.md — the code lives in `StudyLapseCore/TimeAxis`).
+    static func outputDuration(profile: ExportProfile, totalStudySeconds: Double,
+                               interval: Double, fps: Int32) -> Double {
+        totalStudySeconds / speed(profile: profile, totalStudySeconds: totalStudySeconds,
+                                  interval: interval, fps: fps)
+    }
+
+    /// Map an output-video timestamp to study seconds. Used to drive the overlay
+    /// timer. With `speed` on the net axis this is just `outputSeconds * speed`.
+    static func outputToStudy(_ outputSeconds: Double, speed: Double) -> Double {
+        outputSeconds * speed
     }
 }
 ```
@@ -182,10 +197,15 @@ studyOffsetStart[n-1] + studyDuration[n-1]`. Recompute and persist this whenever
 a clip is finalized, recovered, or deleted. A unit test must assert it.
 
 **Minimum playback speed.** Because export drops frames but cannot create them,
-the slowest possible speed is `interval * fps` (at 3s/30fps: 90x). If a chosen
-`targetDurationSeconds` implies a speed below that floor, clamp to the floor and
-surface the resulting actual duration in the UI rather than silently producing a
-different video than requested.
+the slowest possible *net* speed is `interval * fps` (at 3s/30fps: 90x) —
+showing every captured frame exactly once at `fps` already compresses that much
+real time into one output second. If a chosen multiplier, or the net speed a
+`targetDurationSeconds` implies (`totalStudySeconds / targetDurationSeconds`),
+is below that floor, clamp to the floor and surface the resulting actual
+duration in the UI rather than silently producing a different video than
+requested. Note fit-to-duration only clamps for *short* sessions with a *long*
+target (e.g. a 20-min session asked to fill 60s); a multi-hour session fit to
+15s is far above the floor and is honoured exactly.
 
 ## Day boundary
 

@@ -174,19 +174,22 @@ Record a session with a few pause/resume cycles so it has ≥3 finalized clips
 (the record screen shows the clip count), End it, then open the clip browser
 (Record screen → "Clips" toolbar button) and tap **"Export this session"**.
 
-1. `[device]` **Duration matches the computed speed within 100 ms.** With the
-   default profile (100× → clamps to the 90× floor at a 3 s interval), note the
-   "Estimated length" shown, render, then check the saved/shared file's actual
-   duration. They should match within ~0.1 s. Also true for any multiplier you
-   pick.
-2. `[device]` **fit-to-15s on a long session clamps and the UI tells the
-   truth.** Switch Speed to "Fit to duration", pick 15 s, on a session with a
-   good hour+ of study time. "Estimated length" must show the *clamped* value
-   (for a 9 h session that's ~4 s of video, not 15 s). Render and confirm the
-   file's duration equals what the UI said. Expect up to ±1 output frame
-   (~33 ms) of slop — the export quantizes to whole 30 fps frames — well
-   inside the criterion's 100 ms. The screen shows two decimals so a
-   near-boundary match still reads as a match.
+1. `[device]` **Duration matches the computed net speed within 100 ms, and the
+   multiplier is net real-time.** With the default profile (100×), a ~1-hour
+   session should export to roughly `3600/100 = 36 s` of video — **not** a
+   fraction of a second. (The bug just fixed stacked the 100× on top of the
+   ~60–90× the 2–3 s capture interval already gives, i.e. ~6000× net.) Note the
+   "Estimated length", render, check the file duration matches within ~0.1 s.
+   Try a couple of multipliers.
+2. `[device]` **When the floor binds, the UI shows the real clamped duration.**
+   Record a *short* session (~15–20 min), set Speed → "Fit to duration" → 60 s.
+   The requested net speed (`~1000/60 ≈ 17×`) is below the ~90× floor, so
+   "Estimated length" must show the clamped value (~11–13 s), **not** 60 s.
+   Render and confirm the file duration equals what the UI said. Expect up to
+   ±1 output frame (~33 ms) of slop from 30 fps quantization — inside the
+   100 ms tolerance; the screen shows two decimals so a near-boundary match
+   still reads as one. (Note: fit-to-15s on a *long* multi-hour session does
+   **not** clamp any more — that's a fast, honoured 15 s video.)
 3. `[device]` **Audio track spans the whole file.** The export has one silent
    audio track for the full duration (open in QuickTime / check it's not
    video-only). This matters for Phase 6 voiceover.
@@ -241,6 +244,25 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 3 (bug fix): **speed multiplier is net real-time, not
+  stacked on the capture interval.** docs/DATA_MODEL.md's `speed()` formula
+  computed `baseOutput / target` for fit mode and returned the bare
+  `speedMultiplier` for multiplier mode, where `baseOutput = study/(interval*fps)`
+  is *already* the interval-compressed length. Net effect: a "100x" multiplier
+  at a 2s interval produced 60x·100 = 6000x, collapsing a 1-hour session to
+  0.6s. Fixed so `speed` is the net real-time factor on the same axis as
+  `minimumSpeed` (`interval*fps`): multiplier mode returns `max(n, floor)`, fit
+  mode returns `max(study/target, floor)`, and `outputDuration = study/speed`.
+  `TimeAxis.baseOutputSeconds` renamed `nativeOutputSeconds` (= `study/floor`,
+  the composition's native length) and is no longer in the speed math. The
+  exporter already scales `composition.duration` → `outputDuration` directly,
+  so it needed no change. docs/DATA_MODEL.md `speed`/`outputDuration`/
+  `outputToStudy` snippets + the minimum-speed paragraph updated; BUILD.md
+  Phase 3 criterion 2 reworded (the old "fit-15s on a 9h session clamps" is
+  false under the correct math — that's 2160x, far above the floor; the clamp
+  only binds for short sessions with long fit targets). ExportView stepper is
+  now `30…1200× real time`.
 
 - 2026-08-27, Phase 3: `SessionExporter` / `ExportRequest` shape. BUILD.md's
   contract was `ExportRequest { session: Session; profile: ExportProfile;
@@ -605,3 +627,12 @@ Newest last. One line per session: date, what moved, how it ended.
   `[device]`/`[eyes-on]`, written up under *Needs developer verification* with
   exact repro steps. Next agent action: fix anything the device checks turn
   up, else Phase 4.
+- 2026-08-27 — two follow-ups before the developer's 1-hour test: (a) idle
+  timer / screen-stays-on hardening (re-assert on foreground while recording,
+  debug-log the state) — the mechanism was already correct, this makes it
+  verifiable and robust to app-switches; (b) **fixed the speed math** — the
+  export multiplier was stacked on top of the capture-interval compression
+  (100× → ~6000× net). Now `speed` is net real-time on the same axis as
+  `minimumSpeed`, `outputDuration = study/speed`. Touched `TimeAxis`,
+  `ExportCoordinator.isClampedToFloor`, the tests, `ExportView` stepper, and
+  docs/DATA_MODEL.md + BUILD.md criterion 2 + docs/EXPORT.md. All green on CI.
