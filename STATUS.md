@@ -1,16 +1,18 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 2 of 9 — A real multi-clip session with correct study time
-**Next action:** Phase 2 is done bar one box. Criteria 1 (ci) and 3/4/5/6
-(device/eyes-on, developer-confirmed 2026-08-27) are checked. **Only criterion
-2 (`studyOffsetStart` tiling invariant, `[device]`) is open** — it has full CI
-coverage (`StudyOffsetsTests`, 200-case random sequence) and the developer
-needs to either accept that or eyeball offsets on the new Clips debug screen
-(see *Needs developer verification*). Once that box is checked, move Phase 2 to
-Done and start **Phase 3 — export with a burned-in timer** (docs/EXPORT.md,
-`ExportCoordinator` + `AVMutableComposition` + `AVVideoCompositionCoreAnimationTool`).
-Nothing else for the agent to build in Phase 2.
+**Current phase:** 3 of 9 — Export with a burned-in timer (not started)
+**Next action:** Phase 2 is **complete** — all six acceptance criteria checked
+(criteria 3/4/5/6 confirmed on device 2026-08-27; criterion 2 accepted on the
+CI test). Do **not** start Phase 3 yet — the developer has paused before it.
+When Phase 3 does start: docs/EXPORT.md is the spec — `ExportCoordinator` /
+`SessionExporter` over `AVMutableComposition` +
+`AVVideoCompositionCoreAnimationTool`, speed by multiplier and fit-to-duration
+with the minimum-speed clamp (`TimeAxis.speed` already handles the math),
+three aspect presets, the `minimal` timer overlay in four corners, a silent
+audio track, and save-to-Photos + share sheet. Read BUILD.md Phase 3 for the
+acceptance criteria (all `[device]`/`[eyes-on]`, but the composition path is
+CI-testable per docs/TESTING.md's "Export verification without eyes").
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -79,8 +81,16 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 2 — A real multi-clip session with correct study time** — code
-  complete, awaiting device verification only. Everything below is built,
+- Nothing. Phase 2 is complete (see Done). Phase 3 not started — held at the
+  developer's request.
+
+## Done
+
+- **Phase 2 — A real multi-clip session with correct study time** (2026-08-27)
+  — all six acceptance criteria checked. Criteria 3/4/5/6 confirmed on device
+  2026-08-27; criterion 2 (`studyOffsetStart` tiling) accepted on the CI test
+  (`StudyOffsetsTests`, 200-case random insert/finalize/delete sequence — pure
+  model math, no device-specific behavior). Everything below is built,
   committed, and green on CI.
   - **SwiftData stack** — all seven `@Model` entities from docs/DATA_MODEL.md in
     `StudyLapse/Model/`, `ModelContainerFactory` (on-disk + in-memory).
@@ -119,41 +129,23 @@ streaming, Instruments, and any paid-program entitlement.
   - **`ClipsDebugView`** — debug-only clip browser (all sessions, per-clip
     index/frames/offset/flags, tap-to-play). Restores on-device clip viewing
     that the Phase 2 `RecordView` rewrite had dropped. Real library is Phase 5.
-  - `[ci]` criterion 1 — **done** (Phase 0 suite; box checked). Phase 0's
-    "re-run day-boundary tests on Apple's Foundation" deferral is discharged —
-    the `core` job runs `swift test` on macOS.
-  - Criteria 3/4 (`[device]`) and 5/6 (`[eyes-on]`) — **confirmed on device
-    2026-08-27, boxes checked in BUILD.md.**
-  - Criterion 2 (`[device]`, `studyOffsetStart` tiling) — CI-green, awaiting the
-    developer's call (accept CI, or eyeball via Clips screen). Only open item.
+  - **Criteria** — 1 (`[ci]`, Phase 0 suite), 3/4 (`[device]`) and 5/6
+    (`[eyes-on]`) confirmed on device 2026-08-27, 2 (`[device]`) accepted on
+    the CI test. Phase 0's "re-run day-boundary tests on Apple's Foundation"
+    deferral is discharged — the `core` job runs `swift test` on macOS.
 
 ## Next up
 
-1. Phase 2 — SwiftData entities, `SessionCoordinator`, chunked writing,
-   scene-phase auto-pause, launch recovery
-2. Phase 3 — export with burned-in timer
+1. Phase 3 — export with a burned-in timer (`ExportCoordinator`,
+   `AVMutableComposition`, overlay via `AVVideoCompositionCoreAnimationTool`).
+   Not started — held at the developer's request.
 
 ## Needs developer verification
 
-**Phase 2 criteria 3, 4, 5, 6 — confirmed on device 2026-08-27** and checked
-off in BUILD.md. Developer sideloaded, exercised pause/resume and force-quit +
-relaunch, and reported "seems to be good, no issues" — recovery lands the
-session in `.paused`, study time counts only recorded time (not wall clock),
-and the session survives a full kill.
+Nothing open. Phase 2's device/eyes-on criteria were all confirmed or accepted
+on 2026-08-27.
 
-**Still open — Phase 2 criterion 2 — `studyOffsetStart` tiling invariant
-(`[device]`)**
-- BUILD.md tags it `[device]`; docs/TESTING.md says CI-verifiable. Verified in
-  `StudyOffsetsTests` (simulator job) including a 200-iteration random
-  insert/finalize/delete sequence. **This is the only thing between Phase 2 and
-  Done.** Decide one of: (a) accept the CI test as sufficient and check the box
-  (recommended — this invariant is pure model math with no device-specific
-  behavior), or (b) eyeball it on device via the new **Clips** debug screen,
-  which lists each clip's `offset Ns` — record a 2+ clip session, end it, and
-  confirm each clip's offset equals the previous clip's offset plus
-  (previous clip's frames × 3s), starting from 0.
-
-Known caveats when checking:
+Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
   launching with no code change.
 - The recording screen has no camera preview by design (docs/UI.md, Q-005) —
@@ -484,3 +476,6 @@ Newest last. One line per session: date, what moved, how it ended.
   browser over every session's clips with tap-to-play, reached from the
   `RecordView` toolbar next to the Debug Log (same rationale as D-024). The
   real library stays Phase 5.
+- 2026-08-27 — developer accepted criterion 2 on the CI test and checked the
+  box. **Phase 2 complete**, all six criteria checked, moved to Done. Developer
+  explicitly asked to hold before Phase 3 — not started. Repo green.

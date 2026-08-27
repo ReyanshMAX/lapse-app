@@ -227,10 +227,11 @@ StudyLapse/App/SessionCoordinator.swift
 - [x] `[ci]` `StudyLapseCoreTests` pass, including: a session of clips
       [120s, 300s, 60s] reports 480s study time; `dayKey` for 02:30 with cutoff 4
       returns the previous date; `closeDeadline` lands at 04:00 the following day
-- [ ] `[device]` the `studyOffsetStart` tiling invariant is asserted by a test
+- [x] `[device]` the `studyOffsetStart` tiling invariant is asserted by a test
       that inserts, finalizes, and deletes clips in arbitrary order
-      — CI simulator test green (`StudyOffsetsTests`, incl. 200-case random
-      sequence); no on-device confirmation yet (see STATUS.md)
+      — accepted on the strength of the CI simulator test (`StudyOffsetsTests`,
+      incl. 200-case random insert/finalize/delete sequence); pure model math,
+      no device-specific behavior. Developer sign-off 2026-08-27.
 - [x] `[device]` force-quitting mid-clip and relaunching leaves at most 120s of
       lost study time and no `isFinalized == false` rows
       — developer confirmed on device 2026-08-27
