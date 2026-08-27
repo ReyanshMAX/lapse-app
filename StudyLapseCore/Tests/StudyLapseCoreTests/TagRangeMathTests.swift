@@ -51,6 +51,39 @@ final class TagRangeMathTests: XCTestCase {
         }
     }
 
+    /// BUILD.md Phase 4 criterion 2: resizing a boundary never yields a
+    /// zero-length or negative range, under any random sequence of resizes
+    /// (interleaved with splits so boundary indices and neighbour widths vary
+    /// widely, including boundaries between already-narrow ranges).
+    func testResizeNeverProducesDegenerateRangeOverRandomSequences() {
+        var generator = SeededGenerator(seed: 0x5EED_1234)
+        let total = 9 * 60 * 60.0
+        for trial in 0..<50 {
+            var ranges = TagRangeMath.seed(
+                fromClipDurations: Array(repeating: total / 6, count: 6))
+            for _ in 0..<400 {
+                if Int.random(in: 0..<4, using: &generator) == 0 {
+                    let position = Double.random(in: 0...total, using: &generator)
+                    ranges = TagRangeMath.split(ranges, at: position)
+                } else {
+                    let boundaryIndex = Int.random(in: -2...(ranges.count + 1), using: &generator)
+                    // Aim at both neighbours' interiors and well outside them.
+                    let position = Double.random(in: -total...(2 * total), using: &generator)
+                    let before = ranges
+                    ranges = TagRangeMath.resize(ranges, boundaryIndex: boundaryIndex, to: position)
+                    XCTAssertEqual(ranges.count, before.count,
+                                   "resize must never add or drop a range (trial \(trial))")
+                }
+                for (i, range) in ranges.enumerated() {
+                    XCTAssertGreaterThan(range.end, range.start,
+                                         "range \(i) degenerate after op (trial \(trial)): \(ranges)")
+                }
+                XCTAssertTrue(TagRangeMath.validate(ranges, total: total),
+                              "tiling broken (trial \(trial)): \(ranges)")
+            }
+        }
+    }
+
     func testValidateRejectsGapsAndOverlaps() {
         let gap = [Range(start: 0, end: 10, tags: []), Range(start: 15, end: 20, tags: [])]
         XCTAssertFalse(TagRangeMath.validate(gap, total: 20))
