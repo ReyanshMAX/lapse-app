@@ -82,8 +82,15 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 5 — Library and stats** — code-complete, merged to `main` (PR #2,
-  `98bb769`), all four CI jobs green. Three feature commits:
+- Nothing. Phase 5 is complete (see Done). Phase 6 (voiceover) not started.
+
+## Done
+
+- **Phase 5 — Library and stats** (2026-08-27) — all five criteria signed off
+  by the developer on the sideloaded `main` build; code merged via PR #2
+  (`98bb769`), all four CI jobs green. Criteria 1–4 each have a CI test that
+  proves the logic (noted per criterion in BUILD.md); the developer accepted
+  those and eyeballed 5 (heatmap + per-tag split). Three feature commits:
   1. `StudyLapseCore/Stats.swift` — `currentStreak` / `longestStreak` over
      `dayKey` strings, `perTagSplit` (multi-tag ranges split their duration
      evenly among their tags, so the docs/UI.md §8 single bar partitions the
@@ -110,6 +117,11 @@ streaming, Instruments, and any paid-program entitlement.
      000, cached to `sessions/<id>/thumbnail.jpg`). `RecordView` toolbar now
      opens `LibraryView`; `ClipsDebugView` **deleted** (this replaced it),
      `DebugLogView` untouched.
+  - Deviations logged: `Session.sourcesPurgedAt` added for BUILD.md criterion 3
+    (DATA_MODEL.md updated same commit); `ClipsDebugView` removed (supersedes
+    the Phase 4 note that kept its export link); Stats interim choices (Q-007).
+  - Thumbnails for pre-Phase-5 sessions generate lazily on first library view
+    and cache to disk — a brief film-icon tile on first scroll is expected.
 
 ## Done
 
@@ -243,15 +255,16 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Phase 5 — library and stats (grid, session detail sheet, delete rows +
-   directory together, re-export, stats with `dayKey` streak / per-tag split /
-   heatmap / untagged band, orphaned-directory launch sweep, manual source
-   purge D-005). Replaces `ClipsDebugView`. Depends on Phases 3 and 4 (done).
+1. Phase 6 — voiceover (`VoiceoverCoordinator`, `AVAudioRecorder`, take
+   management, overlap prevention, 50 ms fades at export, profile-revision
+   staleness banner). Depends on Phase 3 (done). This is where
+   `ExportProfile.revision` finally gets wired — Phase 3 left it deliberately
+   unbumped (see the note in `ExportView`).
 
 ## Needs developer verification
 
-Nothing open. Phase 4's six criteria were signed off 2026-08-27; Phase 3's on
-the same day.
+Nothing open. Phase 5's five criteria were signed off 2026-08-27 on the
+sideloaded `main` build; Phase 4's six and Phase 3's six on the same day.
 
 Known limitations (not bugs, revisit later):
 - Every screen so far is functional-only — no design tokens, no polish.
@@ -259,11 +272,16 @@ Known limitations (not bugs, revisit later):
 - The final timer value (session total) is visible for the last frame only;
   the penultimate value fills the rest of the tail. Smooth later if it reads
   wrong.
-- The export screen is now reached via End Session → Tagging → Export (Phase 4)
-  *and* still from the `ClipsDebugView` link (kept as a re-export path).
+- The export screen is reached via End Session → Tagging → Export (Phase 4) and
+  as a re-export from the library session detail sheet (Phase 5).
+  `ClipsDebugView` and its export link are gone.
 - `intro`/`outro` card toggles exist in the UI and render, but the card text
-  is minimal (date / total / tags) — polish is Phase 7.
-- `TagSliderView` per-segment tag label positioning is rough (see Phase 4 Done).
+  is minimal (date / total / tags) — polish is Phase 8.
+- `TagSliderView` per-segment tag label positioning is rough (see Phase 4 Done);
+  Phase 8.
+- Stats: multi-tag ranges split their time evenly among their tags, and a
+  streak stays "current" through yesterday's `dayKey` (Q-007 — both interim,
+  documented in `Stats.swift`).
 
 Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
@@ -275,8 +293,11 @@ Known caveats (still relevant for later phases):
   `frameCount * captureInterval`, and the free-running 1 Hz counter reconciles
   to the true frame count on stop. Number is correct.
 - Screen dimming while recording is Phase 7, not wired yet.
-- `ghost.jpg` / `thumbnail.jpg` generation on clip finalize / session end is
-  deferred to the phases that consume them (7 and 5) — see Deviations.
+- `ghost.jpg` (resume overlay) generation is still deferred to Phase 7.
+  `thumbnail.jpg` is now generated lazily by `ThumbnailProvider` on first
+  library view (Phase 5), not at session end — a session viewed before its
+  sources are purged keeps its thumbnail; one purged without ever being viewed
+  shows the film icon.
 
 ## Blocked
 
@@ -294,6 +315,28 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 5: **`Session.sourcesPurgedAt: Date?` added.** BUILD.md
+  Phase 5 criterion 3 requires the source-clip purge to "mark the session as
+  non-re-exportable *in the model*", but docs/DATA_MODEL.md never declared a
+  field for it. Gap, not a contradiction (standing rule 2): added the optional
+  (lightweight-migratable) + `Session.canReExport`, updated the DATA_MODEL.md
+  Session entity and Notes in the same commit. `ExportCoordinator.buildPlan`
+  throws `ExportError.sourcesPurged`; both export entry points (the Render
+  button and the detail-sheet re-export link) gate on it.
+
+- 2026-08-27, Phase 5: **`ClipsDebugView` deleted.** The Phase 4 Deviation
+  "the `ClipsDebugView` 'Export this session' link is *kept*" is superseded —
+  `SessionDetailView` carries re-export, `PlaybackView` is still reachable from
+  there and from the export result screen, so the debug browser has no unique
+  job left. `RecordView`'s toolbar link is now "Library".
+
+- 2026-08-27, Phase 5: **Stats interim choices (Q-007).** Multi-tag ranges
+  split their duration evenly among their tags (so the docs/UI.md §8 single bar
+  partitions the total rather than summing past 100%); a streak counts as
+  "current" if its most recent day is today's or yesterday's `dayKey`. Both
+  are documented in `Stats.swift` and OPEN_QUESTIONS.md Q-007 — neither was
+  specified, neither has schema or export impact.
 
 - 2026-08-27, Phase 4: **`SessionCoordinator.lastEndedSession`** added — not in
   BUILD.md's Phase 2 `SessionCoordinator` contract. `end()` clears `session`,
@@ -778,3 +821,20 @@ Newest last. One line per session: date, what moved, how it ended.
   note, the Phase 4 Done known-rough-edge, and the Known-limitations bullet)
   to Phase 8. STATUS.md's phase count updated 5-of-9 → 5-of-11. No source
   files touched; Phase 5 is still next and unaffected.
+- 2026-08-27 — Phase 5 built in one session on branch `phase-5-library-stats`,
+  three feature commits + this doc commit, each chased to green on CI:
+  (1) `StudyLapseCore/Stats.swift` + `StatsTests` — `currentStreak` /
+  `longestStreak` by `dayKey`, `perTagSplit` with an untagged band,
+  `recentDayKeys` for the heatmap; Q-007 logged for the two unspecified bits
+  (multi-tag even-split, streak currency). (2) `Session.sourcesPurgedAt` +
+  DATA_MODEL.md + `SessionStorage` (delete rows+dir together, D-005 source
+  purge keeping `Clip` rows, launch orphan sweep scoped to UUID-named
+  `sessions/` children) + `ExportError.sourcesPurged` + `SessionStorageTests`.
+  (3) `LibraryView` / `SessionDetailView` / `StatsView` / `ThumbnailProvider`;
+  `ClipsDebugView` deleted, `RecordView` toolbar → Library. Advisor pass up
+  front caught the two purge-enforcement points, the "don't delete `Clip` rows
+  on purge" trap, and the UUID-scoping of the sweep. Developer merged the
+  branch mid-session (PR #2, `98bb769`) — the PR #1 "Phase 8 — UI polish"
+  insert landed on `main` in parallel and was picked up on rebase. Developer
+  then sideloaded `main` and signed off all five criteria. **Phase 5
+  complete**, boxes checked, moved to Done. Next: Phase 6 (voiceover).

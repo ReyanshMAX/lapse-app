@@ -366,13 +366,30 @@ StudyLapseCore/Sources/StudyLapseCore/TagRangeMath.swift
 - No search, no bulk operations, no export of stats
 
 **Acceptance criteria**
-- [ ] `[device]` deleting a session removes both its rows and its directory
-- [ ] `[device]` a directory with no matching row is removed by the launch sweep
-- [ ] `[device]` purging sources leaves exports playable and marks the session
+- [x] `[device]` deleting a session removes both its rows and its directory
+      — `SessionStorageTests.testDeleteSessionRemovesRowsAndDirectory` (real
+      directories; cascade + `FileManager` removal). Developer sign-off
+      2026-08-27 on the sideloaded `main` build.
+- [x] `[device]` a directory with no matching row is removed by the launch sweep
+      — `SessionStorageTests.testSweepRemovesOrphanDirectoryButKeepsKnownAndUnparseable`
+      (UUID-named orphan removed; known session + non-UUID name left alone).
+      Sweep wired into `SessionCoordinator.recoverOnLaunch`. Developer sign-off
+      2026-08-27.
+- [x] `[device]` purging sources leaves exports playable and marks the session
       as non-re-exportable in the model
-- [ ] `[device]` streak computation uses `dayKey`, so a session ending at 02:00
+      — `SessionStorageTests.testPurgeSourcesKeepsRowsAndExportsAndBlocksReExport`
+      (clip files gone, `Clip` rows + study-time total + exports kept,
+      `sourcesPurgedAt` set, `ExportCoordinator.buildPlan` throws
+      `.sourcesPurged`). Export playability confirmed on device. Developer
+      sign-off 2026-08-27.
+- [x] `[device]` streak computation uses `dayKey`, so a session ending at 02:00
       counts toward the previous day
-- [ ] `[eyes-on]` the heatmap and per-tag split match a hand-checked week
+      — `StatsTests.testStreakUsesDayKeyNotWallClock` + 8 other streak cases;
+      `StatsView` passes `session.dayKey`, never wall clock. Developer sign-off
+      2026-08-27.
+- [x] `[eyes-on]` the heatmap and per-tag split match a hand-checked week
+      — `Stats.perTagSplit` / heatmap bucketing unit-tested; developer
+      eyeballed the on-screen result on the sideloaded `main` build 2026-08-27.
 
 **Depends on:** Phases 3 and 4
 
