@@ -480,3 +480,15 @@ Newest last. One line per session: date, what moved, how it ended.
   docs/CAPTURE.md's flow. Added `testForceQuitMidChunkIsResolvedByRecovery`
   (drops the coordinator mid-chunk, no pause/end) and an opened-index assertion
   to the rollover test. docs/CAPTURE.md updated. Still green.
+- 2026-08-27 (device feedback) — developer sideloaded and confirmed Phase 2
+  behaves: force-quit recovery, the 4-not-14-min study time, cross-kill
+  persistence. Two notes: (1) the timer "snaps to the next multiple of 3s" on
+  pause/resume — expected, not a bug: study time is
+  `frameCount * captureInterval` (D-003) and the 1 Hz free-running counter
+  reconciles to the true frame count on every stop; the number is right, could
+  smooth the display later. (2) **Regression found and fixed**: the Phase 2
+  `RecordView` rewrite dropped Phase 1's playback path, so captured clips
+  couldn't be viewed on device. Restored as `ClipsDebugView` — a debug-only
+  browser over every session's clips with tap-to-play, reached from the
+  `RecordView` toolbar next to the Debug Log (same rationale as D-024). The
+  real library stays Phase 5.

@@ -1,8 +1,9 @@
 import AVKit
 import SwiftUI
 
-/// Bare playback screen for the Phase 1 written clip — proves capture,
-/// writing, and storage round-trip. No UI polish (BUILD.md non-goals).
+/// Bare AVPlayer screen for a single written clip — reached from the debug
+/// clip browser. Proves capture / writing / storage round-trip on device
+/// until the real library (Phase 5) and export (Phase 3) exist.
 struct PlaybackView: View {
     let url: URL
 

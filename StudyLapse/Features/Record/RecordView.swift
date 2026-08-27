@@ -26,6 +26,9 @@ struct RecordView: View {
             .padding()
             .navigationTitle("StudyLapse")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink("Clips") { ClipsDebugView() }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink("Debug Log") { DebugLogView() }
                 }
