@@ -282,20 +282,23 @@ StudyLapse/Export/OverlayLayerBuilder.swift
 ```
 
 **Acceptance criteria**
-- [ ] `[device]` exporting a 3-clip session produces a file whose duration
+- [x] `[device]` exporting a 3-clip session produces a file whose duration
       matches the computed net speed within 100 ms — the multiplier is net
       real-time, so a 100x export of a 1-hour session is ~36s of video, not
       0.6s (it is not stacked on the capture-interval compression)
-- [ ] `[device]` when the minimum-speed floor binds (a short session with a
+- [x] `[device]` when the minimum-speed floor binds (a short session with a
       long fit-to target — e.g. 20 min fit to 60s), the export clamps to the
       floor and the UI-reported duration equals the actual output duration
-- [ ] `[device]` the exported file has an audio track of the full duration
-- [ ] `[device]` export of a session with zero finalized clips fails with a
+- [x] `[device]` the exported file has an audio track of the full duration
+- [x] `[device]` export of a session with zero finalized clips fails with a
       typed error rather than crashing
-- [ ] `[eyes-on]` the burned-in timer counts study time, is legible at speed, and
+- [x] `[eyes-on]` the burned-in timer counts study time, is legible at speed, and
       ends at the session's total study time
-- [ ] `[eyes-on]` the 9:16 export is centre-cropped without stretching and the
+- [x] `[eyes-on]` the 9:16 export is centre-cropped without stretching and the
       result plays correctly in the Photos app
+
+All six confirmed on device 2026-08-27 (developer sideloaded and verified;
+audio track checked via the `Export verify:` debug-log line).
 
 **Depends on:** Phase 2
 

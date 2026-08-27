@@ -1,16 +1,16 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 3 of 9 — Export with a burned-in timer (code-complete on CI;
-all six acceptance criteria need on-device verification)
-**Next action:** Developer to sideload the latest CI `ipa` and run the six
-Phase 3 checks under *Needs developer verification* below (export a 3-clip
-session, check duration/audio/overlay/crop, try fit-to-15s on a long session,
-export a zero-clip session). If any fail, fix from the reported behaviour.
-Otherwise the next coding task is Phase 4 (tagging) — but see the note there:
-Phase 3's export screen is currently reached from the debug clip browser
-("Export this session"), and Phase 4 is what wires the real tagging → export
-flow.
+**Current phase:** 4 of 9 — Tagging: segment list and slider (not started).
+Phase 3 is **complete** — all six acceptance criteria confirmed on device
+2026-08-27.
+**Next action:** Start Phase 4 per BUILD.md. docs/UI.md §4 is the screen spec;
+`TagRangeMath` in `StudyLapseCore` is already built and tested (Phase 0) — this
+phase *consumes* it, must not fork it. Seed one `TagRange` per finalized clip
+on session end (`origin = .segment`), build the segment-list screen (default)
+and the slider screen (split/merge/resize), `Tag` entity with autocomplete +
+use counts. This is also where the real End-session → Tagging → Export flow
+replaces the temporary "Export this session" link in `ClipsDebugView`.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -79,14 +79,22 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 3 — Export with a burned-in timer.** Code-complete, green on CI
-  (composition graph + overlay layer tree verified in the `simulator` job).
-  All six acceptance criteria are `[device]`/`[eyes-on]` — none checked; see
-  *Needs developer verification*.
-  - `StudyLapseCore`: `TimeAxis.outputDuration(mode:...)` (single source of
-    truth for the UI number *and* the composition scale target) and
-    `TimerOverlay.timerKeyframes` (pure keyframe generation, 2000-cap with
-    auto-coarsening, format fixed by total study time).
+- Nothing. Phase 3 is complete (see Done). Phase 4 not started.
+
+## Done
+
+- **Phase 3 — Export with a burned-in timer, saved to Photos** (2026-08-27) —
+  all six acceptance criteria confirmed on device 2026-08-27 (developer
+  sideloaded and verified duration/clamp/audio-track/zero-clip/timer/9:16;
+  audio track checked via the `Export verify:` debug-log line). CI verifies the
+  composition graph + overlay layer tree (`AVAssetExportSession` +
+  `AVVideoCompositionCoreAnimationTool` crash the simulator — see Deviations).
+  - `StudyLapseCore`: `TimeAxis.speed` / `outputDuration` — net real-time speed
+    on the same axis as `minimumSpeed` (`interval*fps`); `outputDuration =
+    study/speed`. Single source of truth for the UI number *and* the
+    composition scale target. `TimerOverlay.timerKeyframes` — pure keyframe
+    generation, 2000-cap with auto-coarsening, format fixed by total study
+    time.
   - `StudyLapse/Export/`: `AVFoundationSessionExporter` — `prepare()` assembles
     the `AVMutableComposition` (concat finalized clips, scale to the clamped
     output duration, insert a full-length silent LPCM track, aspect-preset
@@ -95,21 +103,22 @@ streaming, Instruments, and any paid-program entitlement.
     (HEVC, H.264 fallback). `OverlayLayerBuilder` (discrete opacity keyframe
     stack, four corners, `minimal`/`boxed`/`mono`). `ExportCoordinator`
     (`@Observable`: plan build, `ExportRecord` write, progress,
-    `estimatedOutputDuration` / `isClampedToFloor`). `SilentAudio`,
-    `PhotosSaver`.
+    `estimatedOutputDuration` / `isClampedToFloor`, post-render track-summary
+    log). `SilentAudio`, `PhotosSaver`.
   - `StudyLapse/Features/Export/ExportView` — speed (multiplier / fit-to
     15·30·60s), aspect, timer style + corner, intro/outro, live estimated
     length with a clamp note, render → progress + cancel → Preview / Share /
     Save to Photos. Reached from `ClipsDebugView` ("Export this session") until
-    Phase 4 wires tagging → export.
-  - Tests (`simulator` job, all green): `ExportTests` asserts on the
-    `Prepared` graph — composed duration == the reported number, one
-    full-length audio track, per-preset render size, `cropTransform` is
-    uniform-scale, the overlay text stack runs `0:00` → session total, corner
-    placement, zero-clip typed error, unfinalized-clip skip. `TimeAxisTests` /
+    Phase 4 wires the real End-session → Tagging → Export flow.
+  - Tests (`simulator` job, all green): `ExportTests` asserts on the `Prepared`
+    graph — composed duration == the reported number, one full-length audio
+    track, per-preset render size, `cropTransform` is uniform-scale, the
+    overlay text stack runs `0:00` → session total, corner placement,
+    zero-clip typed error, unfinalized-clip skip. `TimeAxisTests` /
     `TimerOverlayTests` in the `core` job.
-
-## Done
+  - Follow-ups this session: fixed the speed math (multiplier was stacked on
+    the interval compression → ~6000× net); default capture interval 3s→2s
+    (D-006); screen-stays-on hardening. All logged under Deviations.
 
 - **Phase 2 — A real multi-clip session with correct study time** (2026-08-27)
   — all six acceptance criteria checked. Criteria 3/4/5/6 confirmed on device
@@ -161,65 +170,24 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Developer runs the six Phase 3 device/eyes-on checks (see *Needs developer
-   verification*). Fix anything they report.
-2. Phase 4 — tagging (segment list + slider over `TagRange`, consuming the
-   already-built `TagRangeMath`). This is also where the real tagging → export
-   hand-off replaces the debug "Export this session" entry point.
+1. Phase 4 — tagging (segment list + slider over `TagRange`, consuming the
+   already-built `TagRangeMath`; `Tag` entity with autocomplete). This is also
+   where the real End-session → Tagging → Export flow replaces the debug
+   "Export this session" entry point in `ClipsDebugView`.
 
 ## Needs developer verification
 
-**Phase 3 — all six criteria.** Sideload the latest `StudyLapse-unsigned-ipa`.
-Record a session with a few pause/resume cycles so it has ≥3 finalized clips
-(the record screen shows the clip count), End it, then open the clip browser
-(Record screen → "Clips" toolbar button) and tap **"Export this session"**.
+Nothing open. Phase 3's six device/eyes-on criteria were all confirmed on
+2026-08-27.
 
-1. `[device]` **Duration matches the computed net speed within 100 ms, and the
-   multiplier is net real-time.** With the default profile (100×), a ~1-hour
-   session should export to roughly `3600/100 = 36 s` of video — **not** a
-   fraction of a second. (The bug just fixed stacked the 100× on top of the
-   60× that the 2 s capture interval already gives, i.e. ~6000× net.) Note the
-   "Estimated length", render, check the file duration matches within ~0.1 s.
-   Try a couple of multipliers.
-2. `[device]` **When the floor binds, the UI shows the real clamped duration.**
-   Record a *short* session (~15 min ≈ 900 s of study), set Speed → "Fit to
-   duration" → 60 s. The requested net speed (`900/60 = 15×`) is below the 60×
-   floor (2 s interval × 30 fps), so "Estimated length" must show the clamped
-   value (~15 s), **not** 60 s. Render and confirm the file duration equals
-   what the UI said. Expect up to ±1 output frame (~33 ms) of slop from 30 fps
-   quantization — inside the 100 ms tolerance; the screen shows two decimals so
-   a near-boundary match still reads as one. (Note: fit-to-15s on a *long*
-   multi-hour session does
-   **not** clamp any more — that's a fast, honoured 15 s video.)
-3. `[device]` **Audio track spans the whole file.** The export always adds a
-   silent audio track for the full video length (no audio is captured — D-014 —
-   but Phase 6 mixes the voiceover onto this track, and a video-only file
-   misbehaves on some platforms). After a render, the debug log prints a line
-   like `Export verify: 1 video + 1 audio track(s); file 36.00s, audio track
-   36.00s` — criterion 3 passes when audio count is 1 and the two durations
-   match.
-4. `[device]` **Zero finalized clips → typed error, no crash.** Hard to hit
-   from the UI now (the Export row only appears when there's ≥1 finalized
-   clip); if you can get there, the screen shows "This session has no finished
-   clips to export yet." rather than crashing.
-5. `[eyes-on]` **The burned-in timer counts study time, is legible at speed,
-   and ends at the session total.** Watch the export: top-right timer counts
-   up in study time (not wall clock), readable, and the last frame shows the
-   session's total study time. Try the `boxed` and `mono` styles and the four
-   corners. Note: the exact total shows only on the final frame(s) by design —
-   scrub to the end to see it.
-6. `[eyes-on]` **9:16 is centre-cropped without stretching and plays in
-   Photos.** Pick the 9:16 aspect, render, Save to Photos, play it there. The
-   frame should be centre-cropped from the 16:9 capture (not squished), and
-   play back correctly.
-
-Known limitations to expect (not bugs):
+Known limitations from Phase 3 (not bugs, revisit later):
 - The final timer value (session total) is visible for the last frame only;
   the penultimate value fills the rest of the tail. Smooth later if it reads
   wrong.
 - The export screen is reached from the debug clip browser, not a real flow —
-  Phase 4 adds tagging → export.
-- Free-ID cert still expires ~7 days after signing.
+  Phase 4 adds End-session → Tagging → Export.
+- `intro`/`outro` card toggles exist in the UI and render, but the card text
+  is minimal (date / total / tags) — polish is Phase 7.
 
 Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
@@ -655,3 +623,10 @@ Newest last. One line per session: date, what moved, how it ended.
   capture interval 3s → 2s** (D-006, account-holder call) — `?? 2` fallbacks,
   DECISIONS + docs updated, `SessionCoordinatorTests` pins 3s in setup. All
   green on CI.
+- 2026-08-27 — added a post-render track-summary line to the debug log
+  (`Export verify: N video + M audio track(s); file X.XXs, audio track Y.YYs`)
+  so criterion 3 is checkable on device. Developer then sideloaded and
+  **verified all six Phase 3 criteria** — duration/net-speed, floor clamp,
+  audio track, zero-clip error, timer legibility + total, 9:16 crop.
+  **Phase 3 complete**, all boxes checked in BUILD.md, moved to Done. Repo
+  green. Next: Phase 4 (tagging).
