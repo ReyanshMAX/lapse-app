@@ -1,18 +1,16 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 3 of 9 — Export with a burned-in timer (not started)
-**Next action:** Phase 2 is **complete** — all six acceptance criteria checked
-(criteria 3/4/5/6 confirmed on device 2026-08-27; criterion 2 accepted on the
-CI test). Do **not** start Phase 3 yet — the developer has paused before it.
-When Phase 3 does start: docs/EXPORT.md is the spec — `ExportCoordinator` /
-`SessionExporter` over `AVMutableComposition` +
-`AVVideoCompositionCoreAnimationTool`, speed by multiplier and fit-to-duration
-with the minimum-speed clamp (`TimeAxis.speed` already handles the math),
-three aspect presets, the `minimal` timer overlay in four corners, a silent
-audio track, and save-to-Photos + share sheet. Read BUILD.md Phase 3 for the
-acceptance criteria (all `[device]`/`[eyes-on]`, but the composition path is
-CI-testable per docs/TESTING.md's "Export verification without eyes").
+**Current phase:** 3 of 9 — Export with a burned-in timer (code-complete on CI;
+all six acceptance criteria need on-device verification)
+**Next action:** Developer to sideload the latest CI `ipa` and run the six
+Phase 3 checks under *Needs developer verification* below (export a 3-clip
+session, check duration/audio/overlay/crop, try fit-to-15s on a long session,
+export a zero-clip session). If any fail, fix from the reported behaviour.
+Otherwise the next coding task is Phase 4 (tagging) — but see the note there:
+Phase 3's export screen is currently reached from the debug clip browser
+("Export this session"), and Phase 4 is what wires the real tagging → export
+flow.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -81,8 +79,35 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- Nothing. Phase 2 is complete (see Done). Phase 3 not started — held at the
-  developer's request.
+- **Phase 3 — Export with a burned-in timer.** Code-complete, green on CI
+  (composition graph + overlay layer tree verified in the `simulator` job).
+  All six acceptance criteria are `[device]`/`[eyes-on]` — none checked; see
+  *Needs developer verification*.
+  - `StudyLapseCore`: `TimeAxis.outputDuration(mode:...)` (single source of
+    truth for the UI number *and* the composition scale target) and
+    `TimerOverlay.timerKeyframes` (pure keyframe generation, 2000-cap with
+    auto-coarsening, format fixed by total study time).
+  - `StudyLapse/Export/`: `AVFoundationSessionExporter` — `prepare()` assembles
+    the `AVMutableComposition` (concat finalized clips, scale to the clamped
+    output duration, insert a full-length silent LPCM track, aspect-preset
+    centre-crop transform, build the overlay layer tree); `render()` attaches
+    the `AVVideoCompositionCoreAnimationTool` and runs `AVAssetExportSession`
+    (HEVC, H.264 fallback). `OverlayLayerBuilder` (discrete opacity keyframe
+    stack, four corners, `minimal`/`boxed`/`mono`). `ExportCoordinator`
+    (`@Observable`: plan build, `ExportRecord` write, progress,
+    `estimatedOutputDuration` / `isClampedToFloor`). `SilentAudio`,
+    `PhotosSaver`.
+  - `StudyLapse/Features/Export/ExportView` — speed (multiplier / fit-to
+    15·30·60s), aspect, timer style + corner, intro/outro, live estimated
+    length with a clamp note, render → progress + cancel → Preview / Share /
+    Save to Photos. Reached from `ClipsDebugView` ("Export this session") until
+    Phase 4 wires tagging → export.
+  - Tests (`simulator` job, all green): `ExportTests` asserts on the
+    `Prepared` graph — composed duration == the reported number, one
+    full-length audio track, per-preset render size, `cropTransform` is
+    uniform-scale, the overlay text stack runs `0:00` → session total, corner
+    placement, zero-clip typed error, unfinalized-clip skip. `TimeAxisTests` /
+    `TimerOverlayTests` in the `core` job.
 
 ## Done
 
@@ -136,14 +161,55 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Phase 3 — export with a burned-in timer (`ExportCoordinator`,
-   `AVMutableComposition`, overlay via `AVVideoCompositionCoreAnimationTool`).
-   Not started — held at the developer's request.
+1. Developer runs the six Phase 3 device/eyes-on checks (see *Needs developer
+   verification*). Fix anything they report.
+2. Phase 4 — tagging (segment list + slider over `TagRange`, consuming the
+   already-built `TagRangeMath`). This is also where the real tagging → export
+   hand-off replaces the debug "Export this session" entry point.
 
 ## Needs developer verification
 
-Nothing open. Phase 2's device/eyes-on criteria were all confirmed or accepted
-on 2026-08-27.
+**Phase 3 — all six criteria.** Sideload the latest `StudyLapse-unsigned-ipa`.
+Record a session with a few pause/resume cycles so it has ≥3 finalized clips
+(the record screen shows the clip count), End it, then open the clip browser
+(Record screen → "Clips" toolbar button) and tap **"Export this session"**.
+
+1. `[device]` **Duration matches the computed speed within 100 ms.** With the
+   default profile (100× → clamps to the 90× floor at a 3 s interval), note the
+   "Estimated length" shown, render, then check the saved/shared file's actual
+   duration. They should match within ~0.1 s. Also true for any multiplier you
+   pick.
+2. `[device]` **fit-to-15s on a long session clamps and the UI tells the
+   truth.** Switch Speed to "Fit to duration", pick 15 s, on a session with a
+   good hour+ of study time. "Estimated length" must show the *clamped* value
+   (well above 15 s → really it will be a few seconds of video for a 9 h
+   session; the point is UI number == the file you get), not 15 s. Render and
+   confirm the file's duration equals what the UI said.
+3. `[device]` **Audio track spans the whole file.** The export has one silent
+   audio track for the full duration (open in QuickTime / check it's not
+   video-only). This matters for Phase 6 voiceover.
+4. `[device]` **Zero finalized clips → typed error, no crash.** Hard to hit
+   from the UI now (the Export row only appears when there's ≥1 finalized
+   clip); if you can get there, the screen shows "This session has no finished
+   clips to export yet." rather than crashing.
+5. `[eyes-on]` **The burned-in timer counts study time, is legible at speed,
+   and ends at the session total.** Watch the export: top-right timer counts
+   up in study time (not wall clock), readable, and the last frame shows the
+   session's total study time. Try the `boxed` and `mono` styles and the four
+   corners. Note: the exact total shows only on the final frame(s) by design —
+   scrub to the end to see it.
+6. `[eyes-on]` **9:16 is centre-cropped without stretching and plays in
+   Photos.** Pick the 9:16 aspect, render, Save to Photos, play it there. The
+   frame should be centre-cropped from the 16:9 capture (not squished), and
+   play back correctly.
+
+Known limitations to expect (not bugs):
+- The final timer value (session total) is visible for the last frame only;
+  the penultimate value fills the rest of the tail. Smooth later if it reads
+  wrong.
+- The export screen is reached from the debug clip browser, not a real flow —
+  Phase 4 adds tagging → export.
+- Free-ID cert still expires ~7 days after signing.
 
 Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
@@ -173,6 +239,45 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 3: `SessionExporter` / `ExportRequest` shape. BUILD.md's
+  contract was `ExportRequest { session: Session; profile: ExportProfile;
+  voiceoverTakes: [VoiceoverTake] }`. SwiftData `@Model` objects aren't safe to
+  touch off the main actor (docs/ARCHITECTURE.md) and the render isn't
+  instantaneous, so `ExportCoordinator` flattens everything into a `Sendable`
+  `ExportPlan` value on the main actor and the exporter only sees that. The
+  exporter is itself `@MainActor`. Same resolution as Phase 2's
+  `CaptureController` (media-only). docs/EXPORT.md updated in the same change.
+
+- 2026-08-27, Phase 3: `OverlayLayerBuilder.build` returns
+  `OverlayLayers { parent, video }` rather than `-> CALayer` — the
+  `AVVideoCompositionCoreAnimationTool` needs both layers, wired together
+  before it's constructed. Also takes the flat overlay fields, not an
+  `ExportProfile` (see above). docs/EXPORT.md updated.
+
+- 2026-08-27, Phase 3: **`AVAssetExportSession` +
+  `AVVideoCompositionCoreAnimationTool` crash the iOS Simulator** ("Lost
+  connection to IOSurface Remote Server; unable to recover, exiting process")
+  — the first Phase 3 CI run crash-looped the test host on every render.
+  TESTING.md's optimism ("AVAssetExportSession works on the simulator") does
+  not hold for the CoreAnimationTool path in headless CI. Resolution: the
+  exporter is split into `prepare()` (assemble + return the composition graph
+  and overlay layer tree, no rendering — fully CI-inspectable) and `render()`
+  (build the tool + run the export). CI asserts on `prepare()`'s output; the
+  actual render is a `#if !targetEnvironment(simulator)` device-only test and
+  the six `[device]`/`[eyes-on]` criteria. docs/TESTING.md updated.
+
+- 2026-08-27, Phase 3: silent audio is **LPCM in a `.caf`**, not AAC/`.m4a` as
+  a casual reading of docs/EXPORT.md ("silent audio track") might suggest — the
+  AAC encode path through `AVAudioFile` is the flakier one on the simulator and
+  the export session transcodes the track anyway. Written via `AVAudioFile` in
+  the file's `processingFormat` (float32). Documented in docs/EXPORT.md stage 3.
+
+- 2026-08-27, Phase 3: export preset is HEVC with an **H.264 fallback**
+  (`AVAssetExportPresetHighestQuality`) if the HEVC render fails, rather than
+  HEVC only — the simulator's software HEVC encoder is unreliable (same class
+  as the Phase 1 encoder history). On device HEVC should win. docs/EXPORT.md
+  stage 6 updated.
 
 - 2026-08-27, Phase 2: `CaptureController` interface. docs/CAPTURE.md showed a
   session-aware surface (`start(session:)` / `pause()` / `resume(session:)` /
@@ -479,3 +584,22 @@ Newest last. One line per session: date, what moved, how it ended.
 - 2026-08-27 — developer accepted criterion 2 on the CI test and checked the
   box. **Phase 2 complete**, all six criteria checked, moved to Done. Developer
   explicitly asked to hold before Phase 3 — not started. Repo green.
+- 2026-08-27 — Phase 3 built in one session. Commits, each chased to green on
+  CI: (1) `StudyLapseCore` — `TimeAxis.outputDuration` + `TimerOverlay`
+  keyframes + tests (one red first: arrays of tuples aren't `Equatable`);
+  (2) the `Export/` module — `AVFoundationSessionExporter`, `OverlayLayerBuilder`,
+  `ExportCoordinator`, `SilentAudio`, `PhotosSaver`, `ExportModels`
+  (`ExportPlan` value type); (3) fix a main-actor default-arg init;
+  (4) **split the exporter into `prepare()`/`render()`** after the first render
+  run crash-looped the simulator test host ("Lost connection to IOSurface
+  Remote Server" — the `AVVideoCompositionCoreAnimationTool` path doesn't work
+  in headless CI). CI now verifies the composition graph + overlay layer tree
+  from `prepare()`; the real render is device-only. A `SyntheticFrameSource`
+  buffer-fill added for a since-removed pixel test was reverted (it made
+  `testChunkRolloverPreservesTotalFrameCount` crash on memory pressure —
+  9000 × 8 MB memsets). (5) `ExportView` + `ClipsDebugView` entry + STATUS /
+  BUILD / EXPORT.md / TESTING.md. All 24 simulator tests + core tests green.
+  **Phase 3 is code-complete; none of its six criteria are checked** — all are
+  `[device]`/`[eyes-on]`, written up under *Needs developer verification* with
+  exact repro steps. Next agent action: fix anything the device checks turn
+  up, else Phase 4.

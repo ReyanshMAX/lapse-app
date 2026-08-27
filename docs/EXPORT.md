@@ -19,17 +19,49 @@ post. This is the app's differentiating feature — everything else is a tracker
 ## Pipeline
 
 ```swift
-struct ExportRequest {
-    let session: Session
-    let profile: ExportProfile
-    let voiceoverTakes: [VoiceoverTake]   // non-muted, non-stale only
+// Phase 3 shape. `ExportRequest` carries a Sendable `ExportPlan` snapshot
+// rather than the live `@Model` objects — see "Threading" below.
+struct ExportPlan: Sendable {            // built on the main actor by ExportCoordinator
+    struct Clip: Sendable { let url: URL; let frameCount: Int }
+    let clips: [Clip]
+    let captureIntervalSeconds: Double
+    let outputFrameRate: Int32
+    let totalStudySeconds: Double
+    let speedMode: SpeedMode
+    let aspect: AspectPreset
+    let overlayStyle: OverlayStyle
+    let overlayCorner: OverlayCorner
+    let includeIntroCard: Bool
+    let includeOutroCard: Bool
+    // sessionID / sessionStartedAt / dayKey / profileRevision / tagNames …
+    var outputDuration: Double            // == TimeAxis.outputDuration(...)
 }
 
+struct ExportRequest: Sendable {
+    let plan: ExportPlan
+    var voiceoverTakes: [VoiceoverTakeSnapshot] = []   // Phase 6; non-muted, non-stale only
+}
+
+@MainActor
 protocol SessionExporter {
     func export(_ request: ExportRequest,
                 progress: @escaping (Double) -> Void) async throws -> URL
 }
 ```
+
+### Threading (Phase 3 deviation from the original `ExportRequest`)
+
+The original contract was `ExportRequest { session: Session; profile: ExportProfile;
+… }`. SwiftData `@Model` objects are not safe to touch off the main actor
+(docs/ARCHITECTURE.md), and export composition + render is not instantaneous, so
+`ExportCoordinator` reads everything it needs off the models **on the main
+actor** into the `Sendable` `ExportPlan` value, and the exporter only ever sees
+that. `AVFoundationSessionExporter` is itself `@MainActor` — the heavy work is
+`AVAssetExportSession`'s own, and awaiting it doesn't block the actor. This is
+the same resolution used for `CaptureController` in Phase 2 (media-only, no
+model layer). `ExportProfile` fields are flattened onto the plan; the raw
+strings map to the `AspectPreset` / `OverlayStyle` / `OverlayCorner` enums in
+`StudyLapse/Export/ExportModels.swift`.
 
 Stages, in order:
 
@@ -37,20 +69,34 @@ Stages, in order:
    clip ordered by `index`, `insertTimeRange(clip.fullRange, at: cursor)`.
    Advance `cursor` by the clip's duration. No gaps — pauses are already absent
    because paused time was never recorded.
-2. **Scale.** Compute `speed` per `TimeAxis.speed(profile:...)` in
-   docs/DATA_MODEL.md, clamped to the minimum-speed floor. Apply
-   `composition.scaleTimeRange(fullRange, toDuration: fullDuration / speed)`.
-3. **Video composition.** `AVMutableVideoComposition` with
-   `renderSize` from the aspect preset, `frameDuration = CMTime(value: 1, timescale: 30)`,
-   and one `AVMutableVideoCompositionInstruction` spanning the whole range with a
-   layer instruction carrying the crop/scale transform.
-4. **Overlay.** Build the CALayer tree (below) and attach via
+2. **Scale.** Compute the output length once, via
+   `TimeAxis.outputDuration(mode:totalStudySeconds:interval:fps:)` in
+   StudyLapseCore (which clamps to the minimum-speed floor and is the *single*
+   source of truth for both this scale target and the number the UI shows).
+   Apply `composition.scaleTimeRange(fullRange, toDuration: outputDuration)` to
+   the **video track only** — do the audio insert afterwards so it isn't scaled.
+3. **Audio.** Synthesise a silent **LPCM `.caf`** of exactly the scaled
+   `composition.duration` (`SilentAudio.makeFile`) and insert it on its own
+   track (D-014). LPCM not AAC — the AAC encode path is the flakier one on the
+   simulator and the export session transcodes anyway. `insertEmptyTimeRange`
+   alone is not enough: the export session drops a fully-empty track.
+   Voiceover takes go on a second track in Phase 6.
+4. **Video composition.** `AVMutableVideoComposition` with `renderSize` from the
+   aspect preset, `frameDuration = CMTime(value: 1, timescale: 30)`, one
+   instruction spanning the whole range (black `backgroundColor`) with a layer
+   instruction carrying the centre-crop transform
+   (`AVFoundationSessionExporter.cropTransform`: scale to fill, translate to
+   centre, never stretch; `original` is identity).
+5. **Overlay.** `OverlayLayerBuilder.build(...)` returns an
+   `OverlayLayers { parent, video }` pair (deviation from the `-> CALayer`
+   contract — the Core Animation tool needs both, wired before it is
+   constructed), attached via
    `AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer:in:)`.
-5. **Audio.** Always add a silent audio track for the full duration (D-014).
-   Insert each voiceover take at `outputStartSeconds` on a second audio track.
-6. **Write.** `AVAssetExportSession` with `presetName = AVAssetExportPresetHEVCHighestQuality`,
-   `videoComposition` and `audioMix` set, `outputFileType = .mov`. Poll
-   `.progress` on a timer for the progress callback.
+6. **Write.** `AVAssetExportSession`, `presetName = AVAssetExportPresetHEVCHighestQuality`
+   with a fallback to `AVAssetExportPresetHighestQuality` (H.264) if the HEVC
+   render fails — the simulator's software HEVC encoder is unreliable (STATUS.md
+   Phase 1). `videoComposition` set, `outputFileType = .mov`. `exportAsynchronously`
+   then poll `.status`/`.progress` from the main actor between `Task.sleep`s.
 7. **Record.** Insert an `ExportRecord`, write the file into the session's
    `exports/` directory, then present the share sheet.
 
@@ -78,7 +124,15 @@ parentLayer                     (renderSize bounds)
 All animations must set `beginTime = AVCoreAnimationBeginTimeAtZero` (never 0,
 which Core Animation treats as "now"), `isRemovedOnCompletion = false`, and
 `fillMode = .forwards`. Set `parentLayer.isGeometryFlipped = true` so layer
-coordinates match video orientation.
+coordinates match video orientation (origin top-left, y down — corner insets
+are computed in that space).
+
+`OverlayLayerBuilder.build(...)` returns `OverlayLayers { parent, video }`
+rather than a lone `CALayer`: the Core Animation tool needs both layers and
+they must be wired (`parent.addSublayer(video)`) before it is constructed. It
+takes the flat overlay fields (`style`, `corner`, `includeIntroCard`, …)
+directly rather than an `ExportProfile`, since the exporter never holds a
+`@Model`.
 
 ### Timer animation
 
@@ -103,7 +157,17 @@ opacity is keyframed on and off in sequence, or as a single layer driven by a
 string. The layer-stack approach is simpler and is the default; switch only if
 keyframe counts become a memory problem.
 
-Format: `H:MM` when total study time ≥ 1 hour, else `MM:SS`.
+`timerKeyframes` (in `StudyLapseCore/TimerOverlay.swift`) appends a final
+`(outputDuration, totalText)` keyframe so the exact session total is shown at
+the end. Because study time only *reaches* the total at the final instant, that
+label is visible for the last frame only — the penultimate value (one
+granularity step below the total) fills the rest of the tail. Acceptable for
+v1; smooth it later if it reads wrong.
+
+Format is fixed by **total** study time, not the running value, so the digits
+never change shape mid-video: `H:MM` when total ≥ 1 hour, else `MM:SS`.
+`OverlayLayerBuilder` picks `seconds` granularity below 10 minutes total,
+`minutes` above.
 
 ### Overlay styles
 

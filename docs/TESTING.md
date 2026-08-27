@@ -138,7 +138,19 @@ Two rules that keep an unattended run honest:
 
 - Simulator tests need a destination that exists on the runner image; prefer
   `-destination 'generic/platform=iOS Simulator'` over a named device.
-- `AVAssetExportSession` works on the simulator, though slower than on device.
-  Keep test sessions short — a few hundred synthetic frames, not thousands.
+- `AVAssetExportSession` **plus `AVVideoCompositionCoreAnimationTool` crashes
+  the iOS Simulator** in headless CI — "Lost connection to IOSurface Remote
+  Server; unable to recover, exiting process." (Phase 3, 2026-08-27). A plain
+  `AVAssetWriter` (capture) is fine; the overlay-burn export path is not. So
+  export is verified by *inspecting the assembled composition* rather than by
+  rendering: `AVFoundationSessionExporter.prepare()` returns the
+  `AVMutableComposition` + `AVMutableVideoComposition` + overlay `CALayer` tree
+  with no render, and `ExportTests` asserts on that (durations, track count,
+  render size, crop transform, the timer text stack). The real render is a
+  `#if !targetEnvironment(simulator)` device-only test. The "sample frames and
+  diff the timer region" technique below is therefore **device-only** too.
+- Keep synthetic capture short — a few hundred frames. Thousands of
+  pool-allocated `CVPixelBuffer`s (e.g. a 300 s emit at 30 fps) already
+  strains the simulator; do not also memset-fill them.
 - Recovery tests must actually truncate a written file rather than simulating a
   truncation, or they test nothing.

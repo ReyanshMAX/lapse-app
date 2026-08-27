@@ -24,6 +24,13 @@ struct ClipsDebugView: View {
                     ForEach(clips) { clip in
                         clipRow(clip)
                     }
+                    if !session.clips.filter(\.isFinalized).isEmpty {
+                        NavigationLink {
+                            ExportView(session: session)
+                        } label: {
+                            Label("Export this session", systemImage: "square.and.arrow.up")
+                        }
+                    }
                 }
             }
         }
