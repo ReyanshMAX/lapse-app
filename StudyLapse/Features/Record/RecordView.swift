@@ -1,26 +1,22 @@
 import AVFoundation
+import StudyLapseCore
 import SwiftUI
 
-/// Phase 1 thin slice: prime/request camera permission, run one hardcoded
-/// 60s capture at a 3s interval, then hand off to playback. No sessions, no
-/// pause/resume, no overlay — see BUILD.md Phase 1 non-goals.
+/// Phase 2 record screen: the study-time timer, clip count, and
+/// record / pause / resume / end controls wired to `SessionCoordinator`.
+/// No preview while recording (docs/UI.md, Q-005); no overlay, tagging, or
+/// export yet (BUILD.md Phase 2 non-goals).
 struct RecordView: View {
+    @Environment(SessionCoordinator.self) private var coordinator
     @State private var authorizationStatus: AVAuthorizationStatus = CameraPermission.status
-    @State private var isCapturing = false
-    @State private var secondsRemaining = Int(RecordView.captureDurationSeconds)
-    @State private var resultURL: URL?
     @State private var errorMessage: String?
-
-    private static let captureIntervalSeconds: Double = 3
-    private static let outputFrameRate: Int32 = 30
-    private static let captureDurationSeconds: Double = 60
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 switch authorizationStatus {
                 case .authorized:
-                    captureContent
+                    sessionControls
                 case .notDetermined:
                     permissionPrime
                 default:
@@ -31,14 +27,70 @@ struct RecordView: View {
             .navigationTitle("StudyLapse")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink("Debug Log") {
-                        DebugLogView()
-                    }
+                    NavigationLink("Debug Log") { DebugLogView() }
                 }
             }
-            .navigationDestination(item: $resultURL) { url in
-                PlaybackView(url: url)
+        }
+    }
+
+    @ViewBuilder
+    private var sessionControls: some View {
+        Text(Formatters.studyTime(coordinator.studySeconds))
+            .font(.system(size: 60, weight: .semibold, design: .monospaced))
+            .monospacedDigit()
+
+        Text(clipCountLabel)
+            .foregroundStyle(.secondary)
+
+        VStack(spacing: 12) {
+            switch coordinator.status {
+            case .ended:
+                actionButton("Start Recording") { start() }
+            case .recording:
+                actionButton("Pause") { Task { await coordinator.pause() } }
+                actionButton("End Session", role: .destructive) { Task { await coordinator.end() } }
+            case .paused:
+                actionButton("Resume") { resume() }
+                actionButton("End Session", role: .destructive) { Task { await coordinator.end() } }
             }
+        }
+
+        if let errorMessage {
+            Text(errorMessage)
+                .foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var clipCountLabel: String {
+        let count = coordinator.clipCount
+        return "\(count) clip\(count == 1 ? "" : "s")"
+    }
+
+    private func actionButton(_ title: String, role: ButtonRole? = nil,
+                              action: @escaping () -> Void) -> some View {
+        Button(title, role: role, action: action)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+    }
+
+    private func start() {
+        errorMessage = nil
+        do {
+            try coordinator.startNewSession()
+        } catch {
+            errorMessage = "Couldn't start recording: \(error.localizedDescription)"
+            DebugLog.write("Record", "start failed: \(error)")
+        }
+    }
+
+    private func resume() {
+        errorMessage = nil
+        do {
+            try coordinator.resume()
+        } catch {
+            errorMessage = "Couldn't resume: \(error.localizedDescription)"
+            DebugLog.write("Record", "resume failed: \(error)")
         }
     }
 
@@ -54,6 +106,7 @@ struct RecordView: View {
                     DebugLog.write("Permission", "camera authorization now \(authorizationStatus.rawValue)")
                 }
             }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -61,71 +114,5 @@ struct RecordView: View {
     private var permissionDenied: some View {
         Text("Camera access is required. Enable it in Settings to continue.")
             .multilineTextAlignment(.center)
-    }
-
-    @ViewBuilder
-    private var captureContent: some View {
-        if isCapturing {
-            VStack(spacing: 16) {
-                Text("\(secondsRemaining)s remaining")
-                    .font(.system(.largeTitle, design: .monospaced))
-                ProgressView(value: Self.captureDurationSeconds - Double(secondsRemaining), total: Self.captureDurationSeconds)
-            }
-        } else {
-            VStack(spacing: 16) {
-                Button("Start 60s Capture") {
-                    startCapture()
-                }
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                }
-            }
-        }
-    }
-
-    private func startCapture() {
-        errorMessage = nil
-
-        let clipURL = StorageLocator.url(forRelativePath: "phase1-clips/\(UUID().uuidString).mov")
-        try? FileManager.default.createDirectory(
-            at: clipURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-
-        let source = CameraFrameSource()
-        let controller = CaptureController(source: source)
-
-        do {
-            try controller.startClip(
-                to: clipURL,
-                intervalSeconds: Self.captureIntervalSeconds,
-                outputFrameRate: Self.outputFrameRate
-            )
-        } catch {
-            errorMessage = "Failed to start capture: \(error.localizedDescription)"
-            DebugLog.write("Capture", "start failed: \(error)")
-            return
-        }
-
-        isCapturing = true
-        secondsRemaining = Int(Self.captureDurationSeconds)
-
-        Task {
-            while secondsRemaining > 0 {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                secondsRemaining -= 1
-            }
-            do {
-                let result = try await controller.finishClip()
-                isCapturing = false
-                resultURL = result.url
-            } catch {
-                isCapturing = false
-                errorMessage = "Failed to finish capture: \(error.localizedDescription)"
-                DebugLog.write("Capture", "finish failed: \(error)")
-            }
-        }
     }
 }
