@@ -154,14 +154,18 @@ final class CaptureController: @unchecked Sendable {
         )
     }
 
-    /// Finalizes the current chunk and delivers it through `onClipFinalized`.
-    /// Returns once that finalize completes.
-    func stopRecording() async {
+    /// Finalizes the current chunk and returns it once `finishWriting`
+    /// completes. Unlike a rollover chunk (which is delivered through
+    /// `onClipFinalized`), the trailing chunk is returned directly so the
+    /// caller can persist it inside the same awaited call — no detached Task,
+    /// no window where a session teardown races the persist.
+    @discardableResult
+    func stopRecording() async -> FinalizedClip? {
         source.stop()
-        await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             queue.async { [weak self] in
                 guard let self, let segment = self.current else {
-                    continuation.resume()
+                    continuation.resume(returning: nil)
                     return
                 }
                 self.current = nil
@@ -170,24 +174,23 @@ final class CaptureController: @unchecked Sendable {
                 guard segment.started, segment.frameIndex > 0 else {
                     try? FileManager.default.removeItem(at: segment.url)
                     DebugLog.write("Capture", "stopRecording: dropped empty trailing segment \(segment.index)")
-                    continuation.resume()
+                    continuation.resume(returning: nil)
                     return
                 }
 
                 let index = segment.index
                 let count = segment.frameIndex
                 let url = segment.url
-                let callback = self.onClipFinalized
                 segment.input.markAsFinished()
                 segment.writer.finishWriting {
                     if segment.writer.status == .completed {
                         DebugLog.write("Capture", "segment \(index) finalized on stop: \(count) frames")
-                        callback?(FinalizedClip(index: index, url: url, frameCount: count))
+                        continuation.resume(returning: FinalizedClip(index: index, url: url, frameCount: count))
                     } else {
                         let message = segment.writer.error?.localizedDescription ?? "unknown writer error"
                         DebugLog.write("Capture", "segment \(index) stop-finalize failed: \(message)")
+                        continuation.resume(returning: nil)
                     }
-                    continuation.resume()
                 }
             }
         }

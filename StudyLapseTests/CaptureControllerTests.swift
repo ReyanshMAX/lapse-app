@@ -78,7 +78,9 @@ final class CaptureControllerTests: XCTestCase {
         // at 120s of recorded PTS → chunk boundaries near 120s and 240s → three
         // chunks of 40, 40, 20 frames.
         source.emit(seconds: 300)
-        await controller.stopRecording()
+        if let trailing = await controller.stopRecording() {
+            collector.append(trailing)
+        }
 
         let reachedTotal = await collector.waitUntilTotalFrames(100, timeout: 15)
         XCTAssertTrue(reachedTotal, "chunk finalize callbacks did not deliver 100 frames in time")
