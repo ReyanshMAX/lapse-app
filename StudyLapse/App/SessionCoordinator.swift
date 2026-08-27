@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import StudyLapseCore
 import SwiftData
 import SwiftUI
 #if canImport(UIKit)
