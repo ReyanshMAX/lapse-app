@@ -53,6 +53,20 @@ DECISIONS.md and delete the entry here.
 - **Depends on it:** whether framing errors are discoverable mid-session. Right
   now a badly framed nine-hour session is only discovered at export
 
+## Q-007: Stats — multi-tag attribution and streak currency
+
+- **Blocking:** no — Phase 5 ships with the interim choices below, documented in
+  `Stats.swift`. Revisit if the stats screen reads wrong to the developer
+- **Multi-tag attribution:** docs/UI.md §8 specifies the per-tag split as bands
+  of a single horizontal bar with untagged as its own band. That only reads
+  correctly if the bands partition the studied total, so a range carrying N tags
+  currently contributes `duration / N` to each tag. The alternative
+  (full duration to every tag) makes the bar sum past 100%. Even-split chosen
+- **Streak currency:** whether a streak whose most recent day is *yesterday*
+  still counts as "current". Chosen: yes — current if the run includes today's
+  or yesterday's `dayKey`; a gap of a full day or more resets it
+- **Depends on it:** only the stats screen's numbers. No schema or export impact
+
 ## Q-006: Behavior when the user studies across two devices or reinstalls
 
 - **Blocking:** no
