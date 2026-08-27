@@ -46,6 +46,7 @@ private struct ExportControls: View {
     @Bindable var profile: ExportProfile
     let coordinator: ExportCoordinator
 
+    @Environment(\.modelContext) private var modelContext
     @State private var saveState: SaveState = .idle
 
     private enum SaveState: Equatable {
@@ -118,10 +119,15 @@ private struct ExportControls: View {
 
             renderSection
         }
-        // NOTE: docs/DATA_MODEL.md says `revision` bumps on any profile edit,
-        // to invalidate stale voiceover takes. Nothing reads it before Phase 6
-        // (voiceover), and doing it here risks bumping on screen-open. Phase 6
-        // owns "profile-revision staleness detection" — it wires this properly.
+        // `revision` bumps on any settings change so voiceover takes recorded
+        // against an older revision are flagged stale (docs/DATA_MODEL.md).
+        // `reconcileRevision` is idempotent: the first call (on appear) only
+        // stamps the fingerprint, later calls bump when a setting actually
+        // moved. Every render also reconciles (ExportCoordinator.export).
+        .onAppear { profile.reconcileRevision() }
+        .onChange(of: profile.settingsFingerprint) { _, _ in
+            if profile.reconcileRevision() { try? modelContext.save() }
+        }
     }
 
     @ViewBuilder
@@ -151,15 +157,22 @@ private struct ExportControls: View {
             }
 
             if let url = coordinator.lastExportURL, !coordinator.isExporting {
-                resultRows(url: url)
+                resultRows(url: url, record: coordinator.lastExportRecord)
             }
         }
     }
 
     @ViewBuilder
-    private func resultRows(url: URL) -> some View {
+    private func resultRows(url: URL, record: ExportRecord?) -> some View {
         NavigationLink("Preview") { PlaybackView(url: url) }
         ShareLink("Share", item: url)
+        if let record {
+            NavigationLink {
+                VoiceoverView(session: session, export: record)
+            } label: {
+                Label("Add Voiceover", systemImage: "mic")
+            }
+        }
         Button {
             saveState = .saving
             Task {
