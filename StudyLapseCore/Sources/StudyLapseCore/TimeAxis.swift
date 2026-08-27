@@ -1,7 +1,7 @@
 import Foundation
 
 /// How an export's playback speed is chosen. See docs/EXPORT.md.
-public enum SpeedMode {
+public enum SpeedMode: Sendable, Equatable {
     case multiplier(Double)
     case fitToDuration(targetSeconds: Double)
 }
