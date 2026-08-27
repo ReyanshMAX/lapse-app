@@ -111,7 +111,9 @@ final class ExportProfile {
     var includeIntroCard: Bool
     var includeOutroCard: Bool
     var revision: Int                // bumped on any change; invalidates voiceover takes
+    var fingerprintAtRevision: String?  // settings signature when `revision` last changed (Phase 6)
 }
+// `fingerprintAtRevision` is a lightweight-migratable optional added in Phase 6.
 
 @Model
 final class VoiceoverTake {
@@ -280,8 +282,19 @@ the root is computed in exactly one place.
   and stamps the date. `ExportCoordinator.buildPlan` then throws
   `ExportError.sourcesPurged`, and the library detail sheet hides re-export.
   Exports and voiceovers already on disk are untouched and stay playable.
-- `ExportProfile.revision` increments on any field change. A `VoiceoverTake`
-  whose `recordedAgainstProfileRevision` is stale must be flagged in the UI as
-  misaligned — do not silently re-time it, since a speed change moves every word.
+- `ExportProfile.revision` increments on any field change. The write semantics
+  (unspecified before Phase 6): `revision` is not bumped on every keystroke.
+  `ExportProfile.settingsFingerprint` is a signature of all eight user-visible
+  settings; `reconcileRevision()` bumps `revision` and restamps
+  `fingerprintAtRevision` only when the fingerprint has actually changed since
+  the last reconcile, so toggling a setting and toggling it back is a no-op.
+  A fresh profile's first reconcile stamps the fingerprint without bumping, so
+  its takes stamp against revision 0. Called from `ExportCoordinator.export`
+  (so each `ExportRecord.profileRevision` is current) and on every edit in the
+  export screen. A `VoiceoverTake` whose `recordedAgainstProfileRevision`
+  differs from the profile's current `revision` is flagged in the UI as
+  misaligned and excluded from export — never silently re-timed, since a speed
+  change moves every word. A take is stamped with the `ExportRecord.profileRevision`
+  of the file it was recorded over, not the live profile.
 - Untagged study time is a real state, not an error. Stats must report it as
   "untagged" rather than dropping it from totals.
