@@ -254,7 +254,15 @@ the root is computed in exactly one place.
 ## Notes
 
 - `Tag.name` is the unique key and must be lowercased and trimmed on write;
-  `displayName` preserves what the user typed.
+  `displayName` preserves what the user typed. Lookups go through a
+  `#Predicate` fetch + insert-if-absent (`TagCatalog.ensure`), not SwiftData's
+  `.unique` upsert.
+- `Tag.useCount` / `Tag.lastUsedAt` are **derived**, not incremented: after any
+  tag edit, `TagCatalog.refreshUseCounts` recomputes `useCount` as the number
+  of `TagRange` rows currently carrying that name (across all sessions) and
+  bumps `lastUsedAt` for tags still in use. The field's write semantics were
+  never specified and a recomputed count cannot drift when a tag is removed and
+  re-added.
 - Deleting a session cascades in SwiftData but does **not** delete files. The
   storage layer must remove the session directory in the same operation, and a
   launch-time sweep should delete orphaned directories with no matching row.

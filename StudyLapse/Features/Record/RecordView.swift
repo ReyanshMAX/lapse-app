@@ -10,6 +10,7 @@ struct RecordView: View {
     @Environment(SessionCoordinator.self) private var coordinator
     @State private var authorizationStatus: AVAuthorizationStatus = CameraPermission.status
     @State private var errorMessage: String?
+    @State private var taggingSession: Session?
 
     var body: some View {
         NavigationStack {
@@ -25,6 +26,9 @@ struct RecordView: View {
             }
             .padding()
             .navigationTitle("StudyLapse")
+            .fullScreenCover(item: $taggingSession) { session in
+                TaggingFlowView(session: session)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     NavigationLink("Clips") { ClipsDebugView() }
@@ -51,10 +55,10 @@ struct RecordView: View {
                 actionButton("Start Recording") { start() }
             case .recording:
                 actionButton("Pause") { Task { await coordinator.pause() } }
-                actionButton("End Session", role: .destructive) { Task { await coordinator.end() } }
+                actionButton("End Session", role: .destructive) { endSession() }
             case .paused:
                 actionButton("Resume") { resume() }
-                actionButton("End Session", role: .destructive) { Task { await coordinator.end() } }
+                actionButton("End Session", role: .destructive) { endSession() }
             }
         }
 
@@ -84,6 +88,16 @@ struct RecordView: View {
         } catch {
             errorMessage = "Couldn't start recording: \(error.localizedDescription)"
             DebugLog.write("Record", "start failed: \(error)")
+        }
+    }
+
+    /// End the session, then hand off to the tagging flow (docs/UI.md §4).
+    /// Reads `lastEndedSession` rather than observing it — the day-boundary
+    /// auto-close also calls `end()` and must not pop this screen.
+    private func endSession() {
+        Task {
+            await coordinator.end()
+            taggingSession = coordinator.lastEndedSession
         }
     }
 

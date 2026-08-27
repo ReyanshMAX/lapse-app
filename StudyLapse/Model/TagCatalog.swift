@@ -63,6 +63,7 @@ enum TagCatalog {
                       displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                       colorHex: palette[count % palette.count])
         context.insert(tag)
+        try? context.save()
         return tag
     }
 

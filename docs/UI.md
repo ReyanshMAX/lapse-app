@@ -72,9 +72,16 @@ study axis, duration, and a tag field with autocomplete from the `Tag` table.
 Multi-select tags per row. Untagged rows are allowed and shown in secondary text.
 
 **Slider (refine).** A horizontal track representing total study time, with
-draggable range handles. Dragging a boundary resizes adjacent ranges — ranges
-must tile the axis with no gaps or overlaps. Tapping a range opens the same tag
-field. Splitting adds a boundary at the tap point; merging removes one.
+draggable range handles. Dragging a boundary resizes adjacent ranges live and
+persists once on release — ranges must tile the axis with no gaps or overlaps.
+Tapping a range selects it and opens the same tag field. Because tap is taken by
+tagging, split/merge are explicit controls: **Split** halves the selected
+segment, **Merge →** folds it into its right neighbour. Merging unions the two
+ranges' tags.
+
+The End-Session button on the Record screen ends the session and presents this
+screen as a full-screen cover; **Continue to Export** pushes the Export screen,
+and **Close** dismisses (leaving ranges as they are — untagged is valid).
 
 `TagRangeMath` in StudyLapseCore owns split/merge/resize and must maintain the
 tiling invariant. Every mutation runs through it.

@@ -1,16 +1,17 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 4 of 9 — Tagging: segment list and slider (not started).
-Phase 3 is **complete** — all six acceptance criteria confirmed on device
-2026-08-27.
-**Next action:** Start Phase 4 per BUILD.md. docs/UI.md §4 is the screen spec;
-`TagRangeMath` in `StudyLapseCore` is already built and tested (Phase 0) — this
-phase *consumes* it, must not fork it. Seed one `TagRange` per finalized clip
-on session end (`origin = .segment`), build the segment-list screen (default)
-and the slider screen (split/merge/resize), `Tag` entity with autocomplete +
-use counts. This is also where the real End-session → Tagging → Export flow
-replaces the temporary "Export this session" link in `ClipsDebugView`.
+**Current phase:** 4 of 9 — Tagging: segment list and slider. **In progress** —
+all Phase 4 scope built and green on CI (branch `phase-4-tagging`). Criteria
+1–2 (`[ci]`) checked; 3–4 (`[device]`/`[eyes-on]`) await developer
+verification.
+**Next action:** Developer — sideload the latest `phase-4-tagging` build and
+check BUILD.md Phase 4 criterion 3 (end a session with ≥2 clips → the Tagging
+screen's segment list shows exactly one row per finalized clip; the debug log
+prints `seeded N tag range(s)`) and criterion 4 (Slider mode → drag a boundary
+handle on a long multi-clip session: it should track the finger and the
+adjacent segment durations update live, no stutter). If both pass, check the
+boxes and move Phase 4 to Done. Otherwise begin Phase 5 (library + stats).
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -79,7 +80,42 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- Nothing. Phase 3 is complete (see Done). Phase 4 not started.
+- **Phase 4 — Tagging: segment list and slider.** Code-complete, green on CI;
+  only the two device/eyes-on criteria remain (see *Needs developer
+  verification*).
+  - **`TagRangeSeeding.ensureSeeded`** (`StudyLapse/Model/`) — seeds one
+    `.segment` `TagRange` per finalized clip, tiling `[0, totalStudySeconds)`,
+    via `TagRangeMath.seed`. Repairing, not one-shot: called from
+    `SessionCoordinator.end()` *and* from the tagging screen's `TagEditor`
+    init, so a rollover clip whose `persistFinalizedClip` `Task` hadn't landed
+    at `end()` time still gets its own range (re-seed if nothing's been tagged,
+    append a tail range if it has).
+  - **`SessionCoordinator.lastEndedSession`** — lets `RecordView` push the
+    tagging flow after `end()` clears `session`. Not observed (the
+    day-boundary auto-close also calls `end()`).
+  - **`TagCatalog`** (`StudyLapse/Model/`) — `normalize` (lowercase/trim),
+    `#Predicate` lookup + insert-if-absent, palette colour assignment,
+    autocomplete `suggestions` (use-count ranked), and `refreshUseCounts`
+    (recomputes `useCount` from the live `TagRange` rows — derived, not
+    incremented; docs/DATA_MODEL.md Notes updated).
+  - **`TagEditor`** (`@MainActor @Observable`, `Features/Tagging/`) — working
+    set of `TagRangeMath.Range` values, every boundary edit through
+    `TagRangeMath`, reconciled onto `@Model` rows by index (ids/origins
+    survive); `previewResize` is memory-only per drag frame, `commitResize`
+    persists once on release.
+  - **Screens** (`Features/Tagging/`): `TaggingFlowView` (full-screen cover),
+    `TaggingView` (List / Slider segmented toggle + Continue-to-Export),
+    `SegmentListView`, `TagSliderView` (draggable handles, Split/Merge
+    controls), `TagFieldSheet` (autocomplete tag picker). `RecordView`'s
+    End-Session button now runs End → Tagging → Export.
+  - **Tests, `simulator` job**: `TagRangeSeedingTests` (criterion 3 + repair
+    semantics + coordinator `end()`), `TagCatalogTests` (normalize, ensure-once,
+    no drift, suggestion ranking), `TagEditorTests` (split/merge/resize
+    persist; 300-op random sequence refetches rows and asserts they still
+    tile). `TagRangeMathTests` (criteria 1–2) in the `core` job.
+  - The `ClipsDebugView` "Export this session" link stays as a re-export path
+    for device testing — intentional, not the "replaced" state the old Next
+    action anticipated.
 
 ## Done
 
@@ -177,8 +213,31 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Needs developer verification
 
-Nothing open. Phase 3's six device/eyes-on criteria were all confirmed on
-2026-08-27.
+**Phase 4 (sideload the latest `phase-4-tagging` build):**
+
+- **Criterion 3 `[device]` — ending a session seeds exactly one range per
+  finalized clip.** Record a session with at least 2 clips (record, pause,
+  resume, record, End Session). On End the Tagging screen opens: its segment
+  list must show exactly one row per finalized clip, contiguous, covering the
+  whole session. The debug log should show `seeded N tag range(s)` with N ==
+  the clip count. Proven in CI by `TagRangeSeedingTests` (pure model math, no
+  device-specific behaviour — same `[device]`-tag conflict already logged for
+  Phase 2 criteria 2/3/4); a green simulator run may be enough for sign-off,
+  developer's call.
+- **Criterion 4 `[eyes-on]` — slider handle drag on a long session.** In the
+  Tagging screen switch to Slider mode. Dragging a boundary handle should move
+  the boundary smoothly under the finger and the two adjacent segment
+  durations (shown for the selected segment / in the list) should update live.
+  Split halves the selected segment; Merge → folds it right. No stutter on a
+  session with many ranges (the drag mutates memory only and persists once on
+  release).
+
+Also worth a look (not blocking): the End → Tagging → Export hand-off — End
+Session should present tagging as a full-screen cover, Continue to Export should
+reach the existing export screen with the session's tags available, Close
+should dismiss leaving ranges untagged (a valid state).
+
+Phase 3's six device/eyes-on criteria were all confirmed on 2026-08-27.
 
 Known limitations from Phase 3 (not bugs, revisit later):
 - The final timer value (session total) is visible for the last frame only;
@@ -218,6 +277,41 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 4: **`SessionCoordinator.lastEndedSession`** added — not in
+  BUILD.md's Phase 2 `SessionCoordinator` contract. `end()` clears `session`,
+  and `RecordView` needs a handle to the just-ended session to push the tagging
+  flow. Read once by the End-Session button, deliberately *not* observed —
+  `end()` is also the day-boundary auto-close path (D-004) and must not pop a
+  screen while backgrounded.
+
+- 2026-08-27, Phase 4: **TagRange seeding is repairing, not one-shot.**
+  BUILD.md says "seed on session end"; `onClipFinalized` persists rollover
+  chunks on an async `Task`, so at `end()` time a late chunk's `Clip` row may
+  not exist yet and a naive seed would produce N ranges for N+1 clips.
+  `TagRangeSeeding.ensureSeeded` is idempotent and self-healing: no ranges →
+  seed; untouched ranges that don't tile the current total → re-seed; tagged
+  ranges with an uncovered tail → append one `.segment` range (append, not
+  extend, to keep criterion 3's one-range-per-clip property). Called from both
+  `end()` and `TagEditor.init`.
+
+- 2026-08-27, Phase 4: **`Tag.useCount` / `lastUsedAt` are derived, not
+  incremented.** docs/DATA_MODEL.md only declared the field; write semantics
+  were unspecified. `TagCatalog.refreshUseCounts` recomputes `useCount` as the
+  count of `TagRange` rows currently carrying the name, so it can't drift on
+  remove-then-re-add. docs/DATA_MODEL.md Notes updated.
+
+- 2026-08-27, Phase 4: **slider split/merge are explicit controls, not
+  tap-to-split.** docs/UI.md §4 said "splitting adds a boundary at the tap
+  point"; tap is already spec'd to open the tag field, so Split halves the
+  selected segment and Merge → folds it into its right neighbour. docs/UI.md §4
+  updated.
+
+- 2026-08-27, Phase 4: the `ClipsDebugView` "Export this session" link is
+  **kept**, not replaced — the real End → Tagging → Export flow is wired into
+  `RecordView`, but the debug link stays as a re-export entry point for device
+  testing during the no-Mac period. STATUS.md's old Next action anticipated a
+  straight replacement.
 
 - 2026-08-27 (account-holder decision): **default capture interval 3s → 2s**
   (D-006). Lower floor (60x vs 90x at 30fps) for more watchable short sessions,
@@ -630,3 +724,19 @@ Newest last. One line per session: date, what moved, how it ended.
   audio track, zero-clip error, timer legibility + total, 9:16 crop.
   **Phase 3 complete**, all boxes checked in BUILD.md, moved to Done. Repo
   green. Next: Phase 4 (tagging).
+- 2026-08-27 — Phase 4 built in one session on branch `phase-4-tagging`, three
+  commits each chased to green on CI: (1) `TagRangeSeeding` + `end()` wiring +
+  `lastEndedSession` + `TagRangeSeedingTests`, BUILD.md criteria 1–2 checked;
+  (2) `TagCatalog` (autocomplete, derived use counts) + `TagEditor`
+  (`TagRangeMath` round-trip onto `@Model` rows) + `TagCatalogTests` /
+  `TagEditorTests` (incl. 300-op random sequence refetching rows);
+  (3) tagging screens (`TaggingFlowView` / `TaggingView` / `SegmentListView` /
+  `TagSliderView` / `TagFieldSheet`), `RecordView` End → Tagging → Export
+  wiring, STATUS / BUILD / docs. Advisor pass up front caught the seeding race
+  (async rollover-clip persistence vs. `end()`) — seeding made repairing, not
+  one-shot. Five Deviations logged (`lastEndedSession`, repairing seed, derived
+  `useCount`, explicit slider Split/Merge, kept debug export link). **Phase 4
+  stays *In progress*** — criteria 1–2 (`[ci]`) green, 3 (`[device]`, proven in
+  CI) and 4 (`[eyes-on]`) written up under *Needs developer verification*. Repo
+  green. Next agent action: fix anything the device checks surface, else
+  Phase 5 (library + stats).
