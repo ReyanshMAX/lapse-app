@@ -17,10 +17,9 @@ final class ExportCoordinator {
     private let context: ModelContext
     private let exporter: AVFoundationSessionExporter
 
-    init(context: ModelContext,
-         exporter: AVFoundationSessionExporter = AVFoundationSessionExporter()) {
+    init(context: ModelContext, exporter: AVFoundationSessionExporter? = nil) {
         self.context = context
-        self.exporter = exporter
+        self.exporter = exporter ?? AVFoundationSessionExporter()
     }
 
     /// Live estimate for the export UI — the exact duration the file will have,
