@@ -27,7 +27,10 @@ struct VoiceoverView: View {
     @State private var micStatus = MicrophonePermission.status
     @State private var errorMessage: String?
 
-    private let ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    // `@State` so the publisher is created once, not rebuilt on every body
+    // evaluation (which would restart the 0.1s countdown and can freeze the
+    // playhead readout).
+    @State private var ticker = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     private var url: URL { StorageLocator.url(forRelativePath: export.relativePath) }
 
     var body: some View {

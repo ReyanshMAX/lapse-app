@@ -304,6 +304,11 @@ can't run in headless CI (`AVAudioRecorder`, the CoreAnimationTool render path,
 audible playback). Reach the screen via Export → render → "Add Voiceover", or
 Library → session → an export row → "Voiceover".
 
+**Wear headphones for checks 1 and 4.** The recorder uses `.defaultToSpeaker`,
+so recording a second take while the first plays through the speaker bleeds the
+first take into the second's file — that reads as a click / sync failure when
+the mix is actually correct.
+
 1. `[device]` **a take at output 12.0s lands at 12.0s ±50 ms in the
    re-export.** Record a take starting ~12s in, go back to Export, hit
    Re-export, play the result. CI proof: `ExportTests`

@@ -64,7 +64,18 @@ final class AVAudioRecorderVoiceover: NSObject, VoiceoverRecording {
         self.recorder = nil
         let elapsed = startedAt.map { Date().timeIntervalSince($0) } ?? recorded
         startedAt = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        // Return the session to a playback category — leaving it on
+        // `.playAndRecord` makes the export playback quieter for the rest of
+        // the screen's life.
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setActive(true)
+            DebugLog.write("Voiceover", "audio session back to .playback")
+        } catch {
+            try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+            DebugLog.write("Voiceover", "audio session restore failed: \(error)")
+        }
         let duration = recorded > 0 ? recorded : elapsed
         DebugLog.write("Voiceover", String(format: "stopped take: %.2fs (recorder %.2fs / elapsed %.2fs)",
                                             duration, recorded, elapsed))

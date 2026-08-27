@@ -147,8 +147,10 @@ struct SessionDetailView: View {
                 HStack(spacing: 16) {
                     NavigationLink("Preview") { PlaybackView(url: url) }
                     ShareLink("Share", item: url)
-                    NavigationLink("Voiceover") {
-                        VoiceoverView(session: session, export: export)
+                    if session.canReExport {
+                        NavigationLink("Voiceover") {
+                            VoiceoverView(session: session, export: export)
+                        }
                     }
                 }
                 .font(.caption)
