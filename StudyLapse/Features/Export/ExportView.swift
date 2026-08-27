@@ -1,10 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Phase 3 export screen (docs/UI.md §5): speed, aspect, overlay, intro/outro,
-/// a live estimated output duration, then render → progress → Save to Photos /
-/// Share. Reached per-session from the debug clip browser until Phase 4 wires
-/// the tagging → export flow.
+/// Export screen (docs/UI.md §5): speed, aspect, overlay, intro/outro, a live
+/// estimated output duration, then render → progress → Save to Photos / Share.
+/// Reached from the tagging flow (Phase 4) and from the library session detail
+/// sheet as a re-export (Phase 5).
 struct ExportView: View {
     let session: Session
 
@@ -137,7 +137,13 @@ private struct ExportControls: View {
                     saveState = .idle
                     Task { await coordinator.export(session: session, profile: profile) }
                 }
-                .disabled(finalizedClipCount == 0)
+                .disabled(finalizedClipCount == 0 || session.sourcesPurgedAt != nil)
+
+                if session.sourcesPurgedAt != nil {
+                    Text("This session's source clips were purged — it can't be re-exported.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let error = coordinator.lastError {

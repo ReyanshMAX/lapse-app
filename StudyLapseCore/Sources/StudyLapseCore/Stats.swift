@@ -33,6 +33,28 @@ public enum Stats {
         return formatter
     }
 
+    /// The plain calendar-day `dayKey` for a date (no cutoff-hour shift — that
+    /// is `DayBoundary`'s job; this is for laying out the heatmap grid).
+    public static func dayKeyString(for date: Date,
+                                    calendar: Calendar = Stats.dayKeyCalendar) -> String {
+        dayKeyFormatter(calendar).string(from: date)
+    }
+
+    /// The `count` most recent calendar-day `dayKey`s ending on `endingOn`
+    /// (inclusive), oldest first — the columns/rows of the calendar heatmap.
+    public static func recentDayKeys(count: Int, endingOn: Date,
+                                     calendar: Calendar = Stats.dayKeyCalendar) -> [String] {
+        guard count > 0 else { return [] }
+        let formatter = dayKeyFormatter(calendar)
+        var keys: [String] = []
+        for offset in stride(from: count - 1, through: 0, by: -1) {
+            if let date = calendar.date(byAdding: .day, value: -offset, to: endingOn) {
+                keys.append(formatter.string(from: date))
+            }
+        }
+        return keys
+    }
+
     // MARK: Streak
 
     /// Consecutive study days ending at the most recent studied day, provided

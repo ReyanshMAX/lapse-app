@@ -66,6 +66,16 @@ final class StatsTests: XCTestCase {
         XCTAssertEqual(Stats.longestStreak(studiedDayKeys: days), 3)
     }
 
+    // MARK: recentDayKeys
+
+    func testRecentDayKeysAreOldestFirstAndInclusive() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 8, day: 3))!
+        XCTAssertEqual(Stats.recentDayKeys(count: 3, endingOn: end),
+                       ["2026-08-01", "2026-08-02", "2026-08-03"])
+    }
+
     // MARK: perTagSplit
 
     func testSingleTagRangesSumToTheirDurations() {
