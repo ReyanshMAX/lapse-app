@@ -31,7 +31,9 @@ struct RecordView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink("Clips") { ClipsDebugView() }
+                    NavigationLink { LibraryView() } label: {
+                        Label("Library", systemImage: "square.grid.2x2")
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink("Debug Log") { DebugLogView() }

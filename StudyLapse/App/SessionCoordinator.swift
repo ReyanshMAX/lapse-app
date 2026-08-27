@@ -159,6 +159,7 @@ final class SessionCoordinator {
     func recoverOnLaunch() async {
         ClipRecovery.demoteRecordingSessions(in: context)
         await ClipRecovery.recoverUnfinalized(in: context)
+        SessionStorage.sweepOrphanedDirectories(in: context)
 
         // Re-attach to the most recent still-open session, if any, so a full
         // app kill doesn't lose the day.

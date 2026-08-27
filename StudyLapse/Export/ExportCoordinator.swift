@@ -114,6 +114,7 @@ final class ExportCoordinator {
     // MARK: Plan construction (main actor — reads @Model state)
 
     static func buildPlan(session: Session, profile: ExportProfile) throws -> ExportPlan {
+        guard session.sourcesPurgedAt == nil else { throw ExportError.sourcesPurged }
         let clips = session.orderedFinalizedClips.filter { $0.frameCount > 0 }
         guard !clips.isEmpty else { throw ExportError.noFinalizedClips }
 

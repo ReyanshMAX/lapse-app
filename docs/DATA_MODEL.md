@@ -32,6 +32,7 @@ final class Session {
     var outputFrameRate: Int32       // frozen at session creation, default 30
     var statusRaw: String            // SessionStatus.rawValue
     var noteText: String?
+    var sourcesPurgedAt: Date?       // non-nil once source clips are purged (D-005)
 
     @Relationship(deleteRule: .cascade, inverse: \Clip.session)
     var clips: [Clip] = []
@@ -47,6 +48,8 @@ final class Session {
     init(id: UUID = UUID(), startedAt: Date, dayKey: String,
          captureIntervalSeconds: Double, outputFrameRate: Int32 = 30)
 }
+// `sourcesPurgedAt` is a lightweight-migratable optional added in Phase 5.
+
 
 enum SessionStatus: String, Codable {
     case recording, paused, ended
@@ -266,6 +269,17 @@ the root is computed in exactly one place.
 - Deleting a session cascades in SwiftData but does **not** delete files. The
   storage layer must remove the session directory in the same operation, and a
   launch-time sweep should delete orphaned directories with no matching row.
+  Both live in `SessionStorage` (`deleteSession`, `sweepOrphanedDirectories`).
+  The sweep only touches children of `sessions/` whose name parses as a UUID
+  with no matching `Session.id` — unparseable names and anything outside
+  `sessions/` are left alone.
+- `Session.sourcesPurgedAt` records a manual source-clip purge (D-005,
+  docs/UI.md §7). `SessionStorage.purgeSources` deletes the files under
+  `clips/`, keeps every `Clip` row (they carry `frameCount` /
+  `studyOffsetStart`, which all study-time totals, stats, and tag ranges read),
+  and stamps the date. `ExportCoordinator.buildPlan` then throws
+  `ExportError.sourcesPurged`, and the library detail sheet hides re-export.
+  Exports and voiceovers already on disk are untouched and stay playable.
 - `ExportProfile.revision` increments on any field change. A `VoiceoverTake`
   whose `recordedAgainstProfileRevision` is stale must be flagged in the UI as
   misaligned — do not silently re-time it, since a speed change moves every word.

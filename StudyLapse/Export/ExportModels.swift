@@ -65,6 +65,7 @@ enum OverlayCorner: String, Sendable, CaseIterable {
 /// "Export must refuse to run on a session with zero finalized clips").
 enum ExportError: LocalizedError, Equatable {
     case noFinalizedClips
+    case sourcesPurged
     case unreadableClip(String)
     case compositionFailed(String)
     case renderFailed(String)
@@ -74,6 +75,8 @@ enum ExportError: LocalizedError, Equatable {
         switch self {
         case .noFinalizedClips:
             return "This session has no finished clips to export yet."
+        case .sourcesPurged:
+            return "This session's source clips were purged, so it can't be re-exported."
         case .unreadableClip(let path):
             return "A clip could not be read: \(path)"
         case .compositionFailed(let detail):
