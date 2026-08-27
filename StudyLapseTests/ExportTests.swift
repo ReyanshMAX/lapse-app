@@ -114,10 +114,16 @@ final class ExportTests: XCTestCase {
                                      durationSeconds: duration, createdAt: createdAt)
     }
 
-    private func audioTrackStarts(_ prepared: AVFoundationSessionExporter.Prepared) -> [Double] {
+    /// Where each audio track's real content begins on the composition
+    /// timeline. `track.timeRange.start` is always 0 once an insert `at:` a
+    /// non-zero time prepends an empty segment — the placement lives in the
+    /// non-empty `AVCompositionTrackSegment`'s target mapping.
+    private func audioContentStarts(_ prepared: AVFoundationSessionExporter.Prepared) -> [Double] {
         prepared.composition.tracks
             .filter { $0.mediaType == .audio }
-            .map { $0.timeRange.start.seconds }
+            .compactMap { track in
+                track.segments.first { !$0.isEmpty }?.timeMapping.target.start.seconds
+            }
             .sorted()
     }
 
@@ -309,8 +315,11 @@ final class ExportTests: XCTestCase {
         let audioTracks = prepared.composition.tracks.filter { $0.mediaType == .audio }
         XCTAssertEqual(audioTracks.count, 3, "one silent track (D-014) + one per take")
 
-        // The take tracks start at exactly their output position (±1 frame).
-        let starts = audioTrackStarts(prepared)
+        // The take tracks' content starts at exactly their output position
+        // (±1 frame); the silent track's content starts at 0.
+        let starts = audioContentStarts(prepared)
+        XCTAssertEqual(starts.count, 3)
+        XCTAssertEqual(starts[0], 0.0, accuracy: 1.0 / 30)
         XCTAssertEqual(starts[1], 0.5, accuracy: 1.0 / 30)
         XCTAssertEqual(starts[2], 2.0, accuracy: 1.0 / 30)
 
@@ -339,7 +348,7 @@ final class ExportTests: XCTestCase {
         let audioTracks = prepared.composition.tracks.filter { $0.mediaType == .audio }
         XCTAssertEqual(audioTracks.count, 2, "silent + one surviving take")
         XCTAssertEqual(prepared.audioMix?.inputParameters.count, 1)
-        let starts = audioTrackStarts(prepared)
+        let starts = audioContentStarts(prepared)
         XCTAssertEqual(starts.last!, 1.5, accuracy: 1.0 / 30, "the newer take survived")
     }
 
