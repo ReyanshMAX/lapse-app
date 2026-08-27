@@ -14,6 +14,11 @@ final class Session {
     var outputFrameRate: Int32      // frozen at session creation, default 30
     var statusRaw: String           // SessionStatus.rawValue
     var noteText: String?
+    /// Set when the user manually purges this session's source clips to reclaim
+    /// storage (D-005, docs/UI.md §7). Non-nil means the `clips/` files are gone
+    /// but the `Clip` rows remain (they carry `frameCount` / `studyOffsetStart`,
+    /// which every stat and tag range depends on); re-export is refused.
+    var sourcesPurgedAt: Date?
 
     @Relationship(deleteRule: .cascade, inverse: \Clip.session)
     var clips: [Clip] = []
@@ -36,7 +41,12 @@ final class Session {
         self.outputFrameRate = outputFrameRate
         self.statusRaw = SessionStatus.recording.rawValue
         self.noteText = nil
+        self.sourcesPurgedAt = nil
     }
+
+    /// False once the source clips have been purged (D-005) — the library
+    /// detail sheet hides re-export and the exporter refuses.
+    var canReExport: Bool { sourcesPurgedAt == nil }
 
     var status: SessionStatus {
         get { SessionStatus(rawValue: statusRaw) ?? .ended }
