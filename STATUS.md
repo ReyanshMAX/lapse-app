@@ -724,17 +724,20 @@ Newest last. One line per session: date, what moved, how it ended.
   audio track, zero-clip error, timer legibility + total, 9:16 crop.
   **Phase 3 complete**, all boxes checked in BUILD.md, moved to Done. Repo
   green. Next: Phase 4 (tagging).
-- 2026-08-27 — Phase 4 built in one session on branch `phase-4-tagging`, three
-  commits each chased to green on CI: (1) `TagRangeSeeding` + `end()` wiring +
+- 2026-08-27 — Phase 4 built in one session on branch `phase-4-tagging`, four
+  commits each chased to green on CI (latest run 33100020445, all 4 jobs):
+  (1) `TagRangeSeeding` + `end()` wiring +
   `lastEndedSession` + `TagRangeSeedingTests`, BUILD.md criteria 1–2 checked;
   (2) `TagCatalog` (autocomplete, derived use counts) + `TagEditor`
   (`TagRangeMath` round-trip onto `@Model` rows) + `TagCatalogTests` /
   `TagEditorTests` (incl. 300-op random sequence refetching rows);
   (3) tagging screens (`TaggingFlowView` / `TaggingView` / `SegmentListView` /
   `TagSliderView` / `TagFieldSheet`), `RecordView` End → Tagging → Export
-  wiring, STATUS / BUILD / docs. Advisor pass up front caught the seeding race
-  (async rollover-clip persistence vs. `end()`) — seeding made repairing, not
-  one-shot. Five Deviations logged (`lastEndedSession`, repairing seed, derived
+  wiring, STATUS / BUILD / docs; (4) advisor follow-up — the tag sheet
+  pre-normalised names so `Tag.displayName` lost the user's casing; the sheet
+  now carries display strings, `setTags` still normalises for storage. Advisor
+  pass up front caught the seeding race (async rollover-clip persistence vs.
+  `end()`) — seeding made repairing, not one-shot. Five Deviations logged (`lastEndedSession`, repairing seed, derived
   `useCount`, explicit slider Split/Merge, kept debug export link). **Phase 4
   stays *In progress*** — criteria 1–2 (`[ci]`) green, 3 (`[device]`, proven in
   CI) and 4 (`[eyes-on]`) written up under *Needs developer verification*. Repo
