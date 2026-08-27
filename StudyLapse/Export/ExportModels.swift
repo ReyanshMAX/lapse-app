@@ -131,17 +131,20 @@ struct ExportPlan: Sendable {
     }
 }
 
-/// A voiceover take flattened for the exporter. Phase 6 populates these; the
-/// type exists now so `ExportRequest` matches its final shape.
+/// A voiceover take flattened for the exporter (Phase 6). `id` / `createdAt`
+/// let the exporter re-run `VoiceoverTimeline.resolveOverlaps` as a backstop
+/// (docs/EXPORT.md: "if found at export time, keep the newer take").
 struct VoiceoverTakeSnapshot: Sendable {
+    let id: UUID
     let url: URL
     let outputStartSeconds: Double
     let durationSeconds: Double
+    let createdAt: Date
 }
 
 struct ExportRequest: Sendable {
     let plan: ExportPlan
-    /// Non-muted, non-stale takes only. Empty until Phase 6.
+    /// Non-muted, non-stale takes only (`VoiceoverCoordinator.exportSnapshots`).
     var voiceoverTakes: [VoiceoverTakeSnapshot] = []
 }
 
