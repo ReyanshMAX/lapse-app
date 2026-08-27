@@ -57,7 +57,9 @@ final class SessionCoordinator {
             throw SessionCoordinatorError.sessionAlreadyActive
         }
         let now = Date()
-        let interval = UserDefaults.standard.object(forKey: "captureIntervalSeconds") as? Double ?? 3
+        // Default 2s (D-006). Keep in sync with the `?? 2` fallback in
+        // `Clip.studyDuration`.
+        let interval = UserDefaults.standard.object(forKey: "captureIntervalSeconds") as? Double ?? 2
         let newSession = Session(startedAt: now,
                                  dayKey: dayBoundary.dayKey(for: now),
                                  captureIntervalSeconds: interval,

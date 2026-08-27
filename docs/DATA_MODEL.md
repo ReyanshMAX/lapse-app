@@ -66,7 +66,7 @@ final class Clip {
     var wasRecovered: Bool           // true if repaired on launch, D-015
 
     /// Study-axis seconds this clip represents.
-    var studyDuration: Double { Double(frameCount) * (session?.captureIntervalSeconds ?? 3) }
+    var studyDuration: Double { Double(frameCount) * (session?.captureIntervalSeconds ?? 2) }
     /// Output-video seconds this clip contributes at 1x composition speed.
     var outputDuration: Double { Double(frameCount) / Double(session?.outputFrameRate ?? 30) }
 }
@@ -197,10 +197,10 @@ studyOffsetStart[n-1] + studyDuration[n-1]`. Recompute and persist this whenever
 a clip is finalized, recovered, or deleted. A unit test must assert it.
 
 **Minimum playback speed.** Because export drops frames but cannot create them,
-the slowest possible *net* speed is `interval * fps` (at 3s/30fps: 90x) —
-showing every captured frame exactly once at `fps` already compresses that much
-real time into one output second. If a chosen multiplier, or the net speed a
-`targetDurationSeconds` implies (`totalStudySeconds / targetDurationSeconds`),
+the slowest possible *net* speed is `interval * fps` (at the 2s default / 30fps:
+60x) — showing every captured frame exactly once at `fps` already compresses
+that much real time into one output second. If a chosen multiplier, or the net
+speed a `targetDurationSeconds` implies (`totalStudySeconds / targetDurationSeconds`),
 is below that floor, clamp to the floor and surface the resulting actual
 duration in the UI rather than silently producing a different video than
 requested. Note fit-to-duration only clamps for *short* sessions with a *long*

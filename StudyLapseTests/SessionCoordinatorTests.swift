@@ -12,9 +12,14 @@ final class SessionCoordinatorTests: XCTestCase {
 
     override func setUpWithError() throws {
         container = try ModelContainerFactory.makeInMemory()
+        // Pin the capture interval so the frame-count assertions below don't
+        // move when the app's default changes (`SessionCoordinator` reads the
+        // "captureIntervalSeconds" UserDefaults key).
+        UserDefaults.standard.set(3.0, forKey: "captureIntervalSeconds")
     }
 
     override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "captureIntervalSeconds")
         container = nil
     }
 

@@ -33,8 +33,10 @@ final class Clip {
         self.wasRecovered = wasRecovered
     }
 
-    /// Study-axis seconds this clip represents.
-    var studyDuration: Double { Double(frameCount) * (session?.captureIntervalSeconds ?? 3) }
+    /// Study-axis seconds this clip represents. The `?? 2` is a detached-clip
+    /// fallback only — it must match the new-session default in
+    /// `SessionCoordinator` (D-006).
+    var studyDuration: Double { Double(frameCount) * (session?.captureIntervalSeconds ?? 2) }
     /// Output-video seconds this clip contributes at 1x composition speed.
     var outputDuration: Double { Double(frameCount) / Double(session?.outputFrameRate ?? 30) }
 }

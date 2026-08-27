@@ -118,7 +118,7 @@ calendar heatmap by `dayKey`. Untagged time appears explicitly as its own band.
 
 ## Settings
 
-Four only: capture interval (1/2/3/5/10s, default 3), day cutoff hour (default
+Four only: capture interval (1/2/3/5/10s, default 2), day cutoff hour (default
 4), default camera (front/rear), and default export profile.
 
 ## Live Activity

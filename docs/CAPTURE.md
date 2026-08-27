@@ -196,9 +196,9 @@ with the timer as the only lit element (see docs/UI.md).
 
 ## Storage estimate
 
-At 1080p HEVC, 8 Mbps, 30fps output and a 3-second interval, one hour of study
-produces 1200 frames = 40 seconds of video ≈ 40 MB. A nine-hour day ≈ 360 MB.
-Surface a running estimate in the recording UI.
+At 1080p HEVC, 8 Mbps, 30fps output and the 2-second default interval, one hour
+of study produces 1800 frames = 60 seconds of video ≈ 60 MB. A nine-hour day
+≈ 540 MB. Surface a running estimate in the recording UI.
 
 ## Notes
 

@@ -178,17 +178,18 @@ Record a session with a few pause/resume cycles so it has ≥3 finalized clips
    multiplier is net real-time.** With the default profile (100×), a ~1-hour
    session should export to roughly `3600/100 = 36 s` of video — **not** a
    fraction of a second. (The bug just fixed stacked the 100× on top of the
-   ~60–90× the 2–3 s capture interval already gives, i.e. ~6000× net.) Note the
+   60× that the 2 s capture interval already gives, i.e. ~6000× net.) Note the
    "Estimated length", render, check the file duration matches within ~0.1 s.
    Try a couple of multipliers.
 2. `[device]` **When the floor binds, the UI shows the real clamped duration.**
-   Record a *short* session (~15–20 min), set Speed → "Fit to duration" → 60 s.
-   The requested net speed (`~1000/60 ≈ 17×`) is below the ~90× floor, so
-   "Estimated length" must show the clamped value (~11–13 s), **not** 60 s.
-   Render and confirm the file duration equals what the UI said. Expect up to
-   ±1 output frame (~33 ms) of slop from 30 fps quantization — inside the
-   100 ms tolerance; the screen shows two decimals so a near-boundary match
-   still reads as one. (Note: fit-to-15s on a *long* multi-hour session does
+   Record a *short* session (~15 min ≈ 900 s of study), set Speed → "Fit to
+   duration" → 60 s. The requested net speed (`900/60 = 15×`) is below the 60×
+   floor (2 s interval × 30 fps), so "Estimated length" must show the clamped
+   value (~15 s), **not** 60 s. Render and confirm the file duration equals
+   what the UI said. Expect up to ±1 output frame (~33 ms) of slop from 30 fps
+   quantization — inside the 100 ms tolerance; the screen shows two decimals so
+   a near-boundary match still reads as one. (Note: fit-to-15s on a *long*
+   multi-hour session does
    **not** clamp any more — that's a fast, honoured 15 s video.)
 3. `[device]` **Audio track spans the whole file.** The export has one silent
    audio track for the full duration (open in QuickTime / check it's not
@@ -221,9 +222,10 @@ Known caveats (still relevant for later phases):
   launching with no code change.
 - The recording screen has no camera preview by design (docs/UI.md, Q-005) —
   a black screen with a timer is correct, not a bug.
-- The timer "snapping to the next multiple of 3s" on pause/resume is expected:
-  study time is `frameCount * captureInterval`, and the free-running 1 Hz
-  counter reconciles to the true frame count on stop. Number is correct.
+- The timer "snapping to the next multiple of the capture interval" (2s by
+  default) on pause/resume is expected: study time is
+  `frameCount * captureInterval`, and the free-running 1 Hz counter reconciles
+  to the true frame count on stop. Number is correct.
 - Screen dimming while recording is Phase 7, not wired yet.
 - `ghost.jpg` / `thumbnail.jpg` generation on clip finalize / session end is
   deferred to the phases that consume them (7 and 5) — see Deviations.
@@ -244,6 +246,16 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27 (account-holder decision): **default capture interval 3s → 2s**
+  (D-006). Lower floor (60x vs 90x at 30fps) for more watchable short sessions,
+  ~50% more source storage (~540 MB for a 9h day, still fine — D-005). Changed
+  the `?? 3` fallbacks in `SessionCoordinator.startNewSession` and
+  `Clip.studyDuration`, updated DECISIONS.md D-006, docs/DATA_MODEL.md,
+  docs/UI.md, docs/CAPTURE.md storage estimate. `SessionCoordinatorTests` now
+  pins the interval to 3s in setup so its frame-count assertions are
+  independent of the default. No settings screen exists yet to change it
+  per-user.
 
 - 2026-08-27, Phase 3 (bug fix): **speed multiplier is net real-time, not
   stacked on the capture interval.** docs/DATA_MODEL.md's `speed()` formula
@@ -627,7 +639,7 @@ Newest last. One line per session: date, what moved, how it ended.
   `[device]`/`[eyes-on]`, written up under *Needs developer verification* with
   exact repro steps. Next agent action: fix anything the device checks turn
   up, else Phase 4.
-- 2026-08-27 — two follow-ups before the developer's 1-hour test: (a) idle
+- 2026-08-27 — three follow-ups before the developer's 1-hour test: (a) idle
   timer / screen-stays-on hardening (re-assert on foreground while recording,
   debug-log the state) — the mechanism was already correct, this makes it
   verifiable and robust to app-switches; (b) **fixed the speed math** — the
@@ -635,4 +647,7 @@ Newest last. One line per session: date, what moved, how it ended.
   (100× → ~6000× net). Now `speed` is net real-time on the same axis as
   `minimumSpeed`, `outputDuration = study/speed`. Touched `TimeAxis`,
   `ExportCoordinator.isClampedToFloor`, the tests, `ExportView` stepper, and
-  docs/DATA_MODEL.md + BUILD.md criterion 2 + docs/EXPORT.md. All green on CI.
+  docs/DATA_MODEL.md + BUILD.md criterion 2 + docs/EXPORT.md; (c) **default
+  capture interval 3s → 2s** (D-006, account-holder call) — `?? 2` fallbacks,
+  DECISIONS + docs updated, `SessionCoordinatorTests` pins 3s in setup. All
+  green on CI.

@@ -21,9 +21,10 @@ public enum TimeAxis {
 
     /// The fastest a **net, real-time** speed can't drop below: showing every
     /// captured frame exactly once at `fps` already compresses `interval * fps`
-    /// seconds of real study into one output second (3s/30fps → 90x). Export can
-    /// drop frames but never invent them, so it can't go slower. All `speed`
-    /// values below are on this same net-real-time axis. See docs/DATA_MODEL.md.
+    /// seconds of real study into one output second (2s/30fps default → 60x).
+    /// Export can drop frames but never invent them, so it can't go slower. All
+    /// `speed` values below are on this same net-real-time axis. See
+    /// docs/DATA_MODEL.md.
     public static func minimumSpeed(interval: Double, fps: Int32) -> Double {
         interval * Double(fps)
     }
