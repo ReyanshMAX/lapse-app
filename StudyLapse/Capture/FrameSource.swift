@@ -163,6 +163,14 @@ final class SyntheticFrameSource: FrameSource {
             var pixelBuffer: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
             guard let buffer = pixelBuffer else { continue }
+            // Fill with a flat colour so downstream pixel assertions have a
+            // uniform background — pool buffers are otherwise uninitialised
+            // (docs/TESTING.md "Export verification without eyes").
+            CVPixelBufferLockBaseAddress(buffer, [])
+            if let base = CVPixelBufferGetBaseAddress(buffer) {
+                memset(base, 0x3B, CVPixelBufferGetDataSize(buffer))
+            }
+            CVPixelBufferUnlockBaseAddress(buffer, [])
             let pts = CMTime(value: tickCursor, timescale: Int32(virtualFrameRate))
             tickCursor += 1
             onFrame?(buffer, pts)
