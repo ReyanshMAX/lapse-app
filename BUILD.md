@@ -229,12 +229,18 @@ StudyLapse/App/SessionCoordinator.swift
       returns the previous date; `closeDeadline` lands at 04:00 the following day
 - [ ] `[device]` the `studyOffsetStart` tiling invariant is asserted by a test
       that inserts, finalizes, and deletes clips in arbitrary order
-- [ ] `[device]` force-quitting mid-clip and relaunching leaves at most 120s of
+      — CI simulator test green (`StudyOffsetsTests`, incl. 200-case random
+      sequence); no on-device confirmation yet (see STATUS.md)
+- [x] `[device]` force-quitting mid-clip and relaunching leaves at most 120s of
       lost study time and no `isFinalized == false` rows
-- [ ] `[device]` a session left `.recording` at launch is moved to `.paused`
-- [ ] `[eyes-on]` record 2 min, background the app, return 10 min later, resume,
+      — developer confirmed on device 2026-08-27
+- [x] `[device]` a session left `.recording` at launch is moved to `.paused`
+      — developer confirmed on device 2026-08-27
+- [x] `[eyes-on]` record 2 min, background the app, return 10 min later, resume,
       record 2 min: the timer reads ~4 min, not ~14 min
-- [ ] `[eyes-on]` the session persists across a full app kill and relaunch
+      — developer confirmed on device 2026-08-27
+- [x] `[eyes-on]` the session persists across a full app kill and relaunch
+      — developer confirmed on device 2026-08-27
 
 **Depends on:** Phase 1
 

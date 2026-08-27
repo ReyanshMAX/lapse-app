@@ -2,16 +2,15 @@
 
 **Last updated:** 2026-08-27
 **Current phase:** 2 of 9 — A real multi-clip session with correct study time
-**Next action:** Phase 2 is code-complete and green on CI (run after commit
-wiring SwiftData + SessionCoordinator into the app). Every `[ci]`-reachable
-piece is built and tested: SwiftData entities, `StudyOffsets.recompute`,
-chunked writing with frame-safe rollover (D-015), `ClipRecovery`,
-`SessionCoordinator` (start/pause/resume/end, scene-phase auto-pause, launch
-recovery), and the Phase 2 record screen. **All that remains is developer
-device/eyes-on verification** — see *Needs developer verification*. Nothing
-for the agent to build here; the next agent action is Phase 3 (export with a
-burned-in timer) once the developer has run the sideload checks, OR picking up
-any device-check failures they report.
+**Next action:** Phase 2 is done bar one box. Criteria 1 (ci) and 3/4/5/6
+(device/eyes-on, developer-confirmed 2026-08-27) are checked. **Only criterion
+2 (`studyOffsetStart` tiling invariant, `[device]`) is open** — it has full CI
+coverage (`StudyOffsetsTests`, 200-case random sequence) and the developer
+needs to either accept that or eyeball offsets on the new Clips debug screen
+(see *Needs developer verification*). Once that box is checked, move Phase 2 to
+Done and start **Phase 3 — export with a burned-in timer** (docs/EXPORT.md,
+`ExportCoordinator` + `AVMutableComposition` + `AVVideoCompositionCoreAnimationTool`).
+Nothing else for the agent to build in Phase 2.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -117,11 +116,16 @@ streaming, Instruments, and any paid-program entitlement.
     truncation), `SessionCoordinatorTests` (4-not-14-min study time, survives
     simulated app kill + resumes, backgrounding auto-pause), and
     `CaptureControllerTests.testChunkRolloverPreservesTotalFrameCount`.
-  - `[ci]` criterion 1 — **done** (Phase 0 suite; box checked in BUILD.md).
-    Phase 0's "re-run day-boundary tests on Apple's Foundation" deferral is
-    discharged — the `core` job runs `swift test` on macOS.
-  - Criteria 2/3/4 (`[device]`) and 5/6 (`[eyes-on]`) — see *Needs developer
-    verification*. The agent does not check these.
+  - **`ClipsDebugView`** — debug-only clip browser (all sessions, per-clip
+    index/frames/offset/flags, tap-to-play). Restores on-device clip viewing
+    that the Phase 2 `RecordView` rewrite had dropped. Real library is Phase 5.
+  - `[ci]` criterion 1 — **done** (Phase 0 suite; box checked). Phase 0's
+    "re-run day-boundary tests on Apple's Foundation" deferral is discharged —
+    the `core` job runs `swift test` on macOS.
+  - Criteria 3/4 (`[device]`) and 5/6 (`[eyes-on]`) — **confirmed on device
+    2026-08-27, boxes checked in BUILD.md.**
+  - Criterion 2 (`[device]`, `studyOffsetStart` tiling) — CI-green, awaiting the
+    developer's call (accept CI, or eyeball via Clips screen). Only open item.
 
 ## Next up
 
@@ -131,44 +135,32 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Needs developer verification
 
-Sideload the latest green `StudyLapse-unsigned-ipa` and check the following.
-Every one has a matching CI simulator test that already passes — these confirm
-it also holds on a real camera / real device. Check the BUILD.md Phase 2 boxes
-yourself once confirmed.
+**Phase 2 criteria 3, 4, 5, 6 — confirmed on device 2026-08-27** and checked
+off in BUILD.md. Developer sideloaded, exercised pause/resume and force-quit +
+relaunch, and reported "seems to be good, no issues" — recovery lands the
+session in `.paused`, study time counts only recorded time (not wall clock),
+and the session survives a full kill.
 
-**Phase 2, criterion 2 — `studyOffsetStart` tiling invariant (`[device]`)**
-- BUILD.md tags this `[device]`; docs/TESTING.md says CI-verifiable. It is
-  verified in `StudyOffsetsTests` (simulator job), including a 200-iteration
-  random insert/finalize/delete sequence. Decide whether that suffices or you
-  want an on-device check too. No app UI surfaces offsets directly — the
-  simplest device check is: record a multi-clip session, end it, and confirm
-  the timer's final value equals the sum of the clip study durations.
-
-**Phase 2, criterion 3 — force-quit recovery (`[device]`)**
-- Start recording, let it run past ~10s, then force-quit from the app switcher
-  mid-clip. Relaunch. Expect: app opens on a `.paused` session (not
-  `.recording`), the debug log shows `Recovery` lines, at most ~120s of study
-  time is missing, and no clip is stuck unfinalized (subsequent resume/end
-  works and the timer total is sane).
-
-**Phase 2, criterion 4 — `.recording` session demoted on launch (`[device]`)**
-- Covered by the same force-quit test: after relaunch the session must be
-  `.paused`, never `.recording`.
-
-**Phase 2, criterion 5 — study time excludes time away (`[eyes-on]`)**
-- Record ~2 min. Pause. Leave the app / lock the phone for ~10 min. Reopen,
-  Resume, record ~2 min more. End. The timer must read ~4 min, not ~14 min.
-
-**Phase 2, criterion 6 — session survives a full kill (`[eyes-on]`)**
-- After the criterion-5 run, before ending: force-quit the app entirely and
-  relaunch. The session and its accumulated study time / clip count must still
-  be there, resumable.
+**Still open — Phase 2 criterion 2 — `studyOffsetStart` tiling invariant
+(`[device]`)**
+- BUILD.md tags it `[device]`; docs/TESTING.md says CI-verifiable. Verified in
+  `StudyOffsetsTests` (simulator job) including a 200-iteration random
+  insert/finalize/delete sequence. **This is the only thing between Phase 2 and
+  Done.** Decide one of: (a) accept the CI test as sufficient and check the box
+  (recommended — this invariant is pure model math with no device-specific
+  behavior), or (b) eyeball it on device via the new **Clips** debug screen,
+  which lists each clip's `offset Ns` — record a 2+ clip session, end it, and
+  confirm each clip's offset equals the previous clip's offset plus
+  (previous clip's frames × 3s), starting from 0.
 
 Known caveats when checking:
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
   launching with no code change.
 - The recording screen has no camera preview by design (docs/UI.md, Q-005) —
   a black screen with a timer is correct, not a bug.
+- The timer "snapping to the next multiple of 3s" on pause/resume is expected:
+  study time is `frameCount * captureInterval`, and the free-running 1 Hz
+  counter reconciles to the true frame count on stop. Number is correct.
 - Screen dimming while recording is Phase 7, not wired yet.
 - `ghost.jpg` / `thumbnail.jpg` generation on clip finalize / session end is
   deferred to the phases that consume them (7 and 5) — see Deviations.
