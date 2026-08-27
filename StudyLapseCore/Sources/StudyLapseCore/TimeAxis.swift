@@ -34,9 +34,34 @@ public enum TimeAxis {
         case .multiplier(let value):
             return max(value, floor)
         case .fitToDuration(let targetSeconds):
-            let baseOutputSeconds = totalStudySeconds / interval / Double(fps)
-            let requestedSpeed = baseOutputSeconds / targetSeconds
+            let requestedSpeed = baseOutputSeconds(totalStudySeconds: totalStudySeconds,
+                                                   interval: interval, fps: fps) / targetSeconds
             return max(requestedSpeed, floor)
         }
+    }
+
+    /// Output-video seconds at 1x composition speed — the length of the
+    /// concatenated source clips before any speed scaling is applied.
+    public static func baseOutputSeconds(totalStudySeconds: Double,
+                                         interval: Double, fps: Int32) -> Double {
+        guard totalStudySeconds > 0, interval > 0, fps > 0 else { return 0 }
+        return totalStudySeconds / interval / Double(fps)
+    }
+
+    /// The actual duration of the exported file for a given speed mode, after
+    /// the minimum-speed floor is applied. Single source of truth for both the
+    /// number the export UI shows and the duration the composition is scaled to
+    /// — they must never be computed independently (BUILD.md Phase 3
+    /// criterion 2: "the UI-reported duration equals the actual output
+    /// duration").
+    public static func outputDuration(mode: SpeedMode, totalStudySeconds: Double,
+                                      interval: Double, fps: Int32) -> Double {
+        let base = baseOutputSeconds(totalStudySeconds: totalStudySeconds,
+                                     interval: interval, fps: fps)
+        guard base > 0 else { return 0 }
+        let effectiveSpeed = speed(mode: mode, totalStudySeconds: totalStudySeconds,
+                                   interval: interval, fps: fps)
+        guard effectiveSpeed > 0 else { return 0 }
+        return base / effectiveSpeed
     }
 }
