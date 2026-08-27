@@ -1,14 +1,17 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 5 of 11 — Library and stats. **Code-complete and merged to
-`main`** (PR #2, merge `98bb769`); all four CI jobs green on the branch. All
-five acceptance criteria are `[device]`/`[eyes-on]` — none checked; written up
-under *Needs developer verification* with the CI test that proves four of them.
-Phases 0–4 complete.
-**Next action:** Developer sideloads the current `main` build and runs the five
-checks under *Needs developer verification*. Pass → check the boxes, move Phase
-5 to Done. Fail → fix. Then Phase 6 (voiceover) per BUILD.md. Nothing blocked.
+**Current phase:** 6 of 11 — Voiceover. **Code-complete on `main`**; all four
+CI jobs green (run on `74b085c`). All four acceptance criteria are
+`[device]`/`[eyes-on]` — none checked; written up under *Needs developer
+verification* with the CI test that proves the logic behind each. Phases 0–5
+complete.
+**Next action:** Developer sideloads the current `main` build and runs the four
+checks under *Needs developer verification* (record a take at 12.0s, re-export,
+confirm alignment + no click; change a profile setting and confirm the stale
+banner; confirm the record button is disabled inside a take). Pass → check the
+boxes, move Phase 6 to Done. Fail → fix. Then Phase 7 per BUILD.md. Nothing
+blocked.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
 far) are functional-only — no design tokens, no polish. Visual work is
@@ -82,7 +85,39 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- Nothing. Phase 5 is complete (see Done). Phase 6 (voiceover) not started.
+- **Phase 6 — Voiceover.** Code-complete on `main`, all four CI jobs green.
+  All four BUILD.md criteria are `[device]`/`[eyes-on]` — none checked (LOOP.md
+  rule); written up under *Needs developer verification* below. Six commits:
+  1. `StudyLapseCore/VoiceoverTimeline.swift` — pure output-axis interval math:
+     `isPlayheadInsideAnyTake` (record-button gate), `wouldOverlap`,
+     `resolveOverlaps` (keep-newer by `createdAt`), `fade` (50 ms ramps,
+     collapses to the midpoint under 100 ms). `VoiceoverTimelineTests` in the
+     `core` job.
+  2. `ExportProfile.reconcileRevision()` + `settingsFingerprint` + new
+     lightweight-migratable `fingerprintAtRevision: String?`. Wires the
+     revision bump Phase 3 deferred (the `ExportView` NOTE is gone). Idempotent:
+     first reconcile stamps without bumping (so a fresh profile's takes stamp
+     against revision 0), later reconciles bump only on a real change.
+     `ExportProfileRevisionTests` (`simulator`). docs/DATA_MODEL.md updated.
+  3. `Voiceover/VoiceoverCoordinator.swift` (`@MainActor @Observable`) —
+     `startTake` / `stopTake` / `delete` / `setMuted` / `staleTakes` /
+     `deleteStaleTakes` + `exportSnapshots`. Recorder behind a
+     `VoiceoverRecording` protocol (`AVAudioRecorderVoiceover` device impl sets
+     `.playAndRecord` and logs the session state + `record()` return to
+     `DebugLog`); `MicrophonePermission` mirrors `CameraPermission`. Takes stamp
+     against the `ExportRecord.profileRevision` of the file recorded over.
+     `VoiceoverCoordinatorTests` (`simulator`) with a stub recorder.
+  4. `AVFoundationSessionExporter.prepare()` adds one composition audio track
+     per take at its `outputStartSeconds` and returns an `AVMutableAudioMix`
+     (`Prepared.audioMix`, set on the session in `render()`) with 50 ms edge
+     fades keyed to the **composition** track. `ExportCoordinator.export`
+     reconciles the revision, passes snapshots, exposes `lastExportRecord`.
+     Three `ExportTests` methods (`simulator`).
+  5. `Features/Voiceover/VoiceoverView.swift` — player + 10 Hz ticker playhead,
+     record/stop, timeline strip (mute/delete), stale banner (delete action),
+     playhead-inside-take gate. Entry points: export result screen
+     ("Add Voiceover") and each export row in the library detail sheet.
+  6. This doc + docs/EXPORT.md + OPEN_QUESTIONS Q-008.
 
 ## Done
 
@@ -255,16 +290,67 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Phase 6 — voiceover (`VoiceoverCoordinator`, `AVAudioRecorder`, take
-   management, overlap prevention, 50 ms fades at export, profile-revision
-   staleness banner). Depends on Phase 3 (done). This is where
-   `ExportProfile.revision` finally gets wired — Phase 3 left it deliberately
-   unbumped (see the note in `ExportView`).
+1. Developer verification of Phase 6 (four checks below).
+2. Phase 7 — Live Activity, guards, dimming, ghost overlay, exposure/WB
+   locking, framing guide, remaining overlay styles + intro/outro cards.
+   Depends on Phase 2 (done). Note the free-Apple-ID three-app limit — the
+   widget extension is a second bundle ID.
 
 ## Needs developer verification
 
-Nothing open. Phase 5's five criteria were signed off 2026-08-27 on the
-sideloaded `main` build; Phase 4's six and Phase 3's six on the same day.
+**Phase 6 — Voiceover.** All four criteria are `[device]`/`[eyes-on]`. CI
+proves the logic; the on-device checks confirm the AVFoundation behaviour that
+can't run in headless CI (`AVAudioRecorder`, the CoreAnimationTool render path,
+audible playback). Reach the screen via Export → render → "Add Voiceover", or
+Library → session → an export row → "Voiceover".
+
+1. `[device]` **a take at output 12.0s lands at 12.0s ±50 ms in the
+   re-export.** Record a take starting ~12s in, go back to Export, hit
+   Re-export, play the result. CI proof: `ExportTests`
+   `testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions` asserts
+   the take's composition-track segment target starts at exactly its
+   `outputStartSeconds` (±1 frame). What CI can't do: run the actual render and
+   listen. Check the debug log for `Voiceover` lines (`audio session
+   .playAndRecord active`, `record() -> true`, `persisted take …`) and an
+   `Export` line `voiceover: mixed 1 take(s)`.
+2. `[device]` **changing the export profile bumps `revision` and marks
+   existing takes stale; stale takes are excluded from re-export.** Record a
+   take, go to Export, change any setting (e.g. toggle the intro card), return
+   to the voiceover screen → the yellow "misaligned" banner should appear, and
+   a re-export should not contain that take (`voiceover: mixed 0 take(s)` in
+   the log). CI proof: `ExportProfileRevisionTests` (bump semantics),
+   `VoiceoverCoordinatorTests.testStaleTakesTrackTheProfileRevision`,
+   `testExportSnapshotsFilterAndResolve` (stale + muted excluded).
+3. `[device]` **the record button is disabled when the playhead is inside an
+   existing take.** Record one take, scrub the playhead into its range → the
+   Record button greys out with the "inside an existing take" caption; scrub
+   past its end → it re-enables. CI proof:
+   `VoiceoverTimelineTests.testPlayheadInsideTakeIsDetected`,
+   `VoiceoverCoordinatorTests.testRecordButtonGatingInsideAnExistingTake`.
+4. `[eyes-on]` **a recorded voiceover plays back in sync with the video and
+   has no audible click at take boundaries.** Record 2–3 takes, re-export,
+   watch the result. The 50 ms fades (`VoiceoverTimeline.fade`, applied via
+   `AVMutableAudioMix` in `AVFoundationSessionExporter`) should make the take
+   edges inaudible. CI proof: only that the mix is built and keyed to the
+   composition tracks (`testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions`
+   checks `inputParameters.trackID` == the composition take-track IDs) —
+   audibility is eyes-/ears-only.
+
+Known Phase 6 limitations (not bugs):
+- The stale banner only offers "delete misaligned takes", not "revert the
+  profile" — no settings history is stored (Q-008). Documented in
+  docs/EXPORT.md and OPEN_QUESTIONS.md.
+- No scrubber drag control yet — the playhead follows playback only; scrub
+  with the `VideoPlayer`'s own transport. Full scrubber + timeline polish is
+  Phase 8.
+- `stopTake()` returns `VoiceoverTake?` not `VoiceoverTake` (nothing to return
+  when stopping nothing) — same media-only deviation as `CaptureController` /
+  `SessionExporter`.
+
+---
+
+Phase 5's five criteria were signed off 2026-08-27 on the sideloaded `main`
+build; Phase 4's six and Phase 3's six on the same day.
 
 Known limitations (not bugs, revisit later):
 - Every screen so far is functional-only — no design tokens, no polish.
@@ -315,6 +401,34 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 6: **`ExportProfile.fingerprintAtRevision: String?` added.**
+  docs/DATA_MODEL.md declared `revision: Int` but never said *when* it bumps.
+  Gap, not a contradiction (standing rule 2): added the optional
+  (lightweight-migratable) to make `reconcileRevision()` idempotent —
+  `settingsFingerprint` (a signature of all eight settings) is compared to the
+  stored one, so toggling a setting back is a no-op and screen-open doesn't
+  bump. docs/DATA_MODEL.md Notes updated the same commit.
+
+- 2026-08-27, Phase 6: **`VoiceoverCoordinator.stopTake()` returns
+  `VoiceoverTake?`, not `VoiceoverTake`.** BUILD.md's Phase 6 surface is
+  non-optional; there is nothing to return when the caller stops nothing (or
+  the take was sub-50 ms). Same media-only / value-returning resolution as
+  `CaptureController` (Phase 2) and `SessionExporter` (Phase 3).
+
+- 2026-08-27, Phase 6: **`AVFoundationSessionExporter.Prepared` carries an
+  `audioMix: AVMutableAudioMix?`.** BUILD.md's `OverlayLayerBuilder` /
+  exporter contracts predate the split `prepare()`/`render()` shape (Phase 3
+  deviation). The voiceover mix is assembled in `prepare()` so CI can inspect
+  it (`inputParameters` count + `trackID` keyed to the composition tracks) and
+  `render()` sets it on the `AVAssetExportSession`. `VoiceoverTakeSnapshot`
+  gained `id` / `createdAt` for the exporter's `resolveOverlaps` backstop.
+  docs/EXPORT.md stage 3b + "Voiceover mixing" updated the same commit.
+
+- 2026-08-27, Phase 6: **stale-takes banner is delete-only.** docs/UI.md §6 /
+  docs/EXPORT.md mention a "revert the profile" action; reverting the settings
+  is impossible without a settings-history field that was judged out of scope.
+  Logged as **Q-008**; docs/EXPORT.md updated to say so.
 
 - 2026-08-27, Phase 5: **`Session.sourcesPurgedAt: Date?` added.** BUILD.md
   Phase 5 criterion 3 requires the source-clip purge to "mark the session as
@@ -838,3 +952,25 @@ Newest last. One line per session: date, what moved, how it ended.
   insert landed on `main` in parallel and was picked up on rebase. Developer
   then sideloaded `main` and signed off all five criteria. **Phase 5
   complete**, boxes checked, moved to Done. Next: Phase 6 (voiceover).
+- 2026-08-27 — Phase 6 built in one session directly on `main`, six commits
+  each chased to green on all four CI jobs (final run on `74b085c`). Advisor
+  pass up front caught six real traps, all applied: audio-mix params must key
+  the composition track not the source (silent no-op otherwise); `render()`
+  must set `exporter.audioMix`; voiceover tracks inserted after the speed
+  scale; `AVAudioSession.playAndRecord` + mic permission + DebugLog of the
+  session/record state; fingerprint over *all* settings not just timing ones;
+  stamp takes with the `ExportRecord` revision not the live profile. Commits:
+  (1) `VoiceoverTimeline` in StudyLapseCore + tests; (2) `ExportProfile`
+  revision reconcile + `fingerprintAtRevision` + DATA_MODEL.md; (3)
+  `VoiceoverCoordinator` + `VoiceoverRecording` seam + `MicrophonePermission`
+  + coordinator tests; (4) exporter `buildVoiceoverMix` + `Prepared.audioMix`
+  + `ExportCoordinator` wiring + `ExportTests`; (5) `VoiceoverView` + entry
+  points; (6) docs. One red run in the middle — a test read
+  `track.timeRange.start` (always 0) instead of the non-empty
+  `AVCompositionTrackSegment`'s target mapping; the fix's green run also
+  confirmed `insertTimeRange(at:)` pads leading empty time so takes land at
+  their true output offset. **Phase 6 stays In progress** — all four criteria
+  are `[device]`/`[eyes-on]`, written up under *Needs developer verification*
+  with the CI test behind each. Four Deviations logged (`fingerprintAtRevision`,
+  optional `stopTake` return, `Prepared.audioMix`, delete-only stale banner →
+  Q-008). Next: developer sideloads and runs the four checks; then Phase 7.

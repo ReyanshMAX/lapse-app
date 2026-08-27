@@ -67,6 +67,23 @@ DECISIONS.md and delete the entry here.
   or yesterday's `dayKey`; a gap of a full day or more resets it
 - **Depends on it:** only the stats screen's numbers. No schema or export impact
 
+## Q-008: Stale-voiceover banner — "revert the profile" action
+
+- **Blocking:** no — Phase 6 ships the banner with a delete-only action
+- **Context:** docs/UI.md §6 and docs/EXPORT.md say the stale-takes banner
+  should offer to "delete the affected takes **or revert the profile
+  revision**". Deleting is implemented. Reverting the *revision number* alone
+  would re-time takes against settings that no longer exist — exactly the
+  "never silently re-time" case D-011/DATA_MODEL.md forbids. Reverting the
+  *settings* is not possible: no per-revision settings history is stored, and
+  adding a snapshot field only for this was judged out of scope (advisor).
+- **Options:** (a) delete-only, current — the user re-picks the old settings by
+  hand if they want the takes back; (b) snapshot the profile settings onto each
+  take at record time, so the banner can restore them; (c) keep a small
+  ring-buffer of recent profile-settings snapshots per session
+- **Depends on it:** whether `ExportProfile` or `VoiceoverTake` gains a settings
+  snapshot field. No effect on the mix pipeline or export correctness.
+
 ## Q-006: Behavior when the user studies across two devices or reinstalls
 
 - **Blocking:** no

@@ -99,15 +99,18 @@ and Add Voiceover.
 
 ### 6. Voiceover
 
-Plays the rendered export with a scrubber. Record button captures a take
-starting at the current output position; recording stops on tap or at end of
-video. Takes render as blocks on a timeline strip under the scrubber, each
-tappable to mute, delete, or re-record. Overlapping takes are prevented at
-creation — the record button is disabled while the playhead sits inside an
-existing take.
+Plays the rendered export. The playhead follows playback (a full drag scrubber
+is Phase 8; use the `VideoPlayer` transport for now). Record button captures a
+take starting at the current output position; recording stops on tap or at end
+of video. Takes render as blocks on a timeline strip under the player, each
+with Mute and Delete actions (re-record = delete + record again). Overlapping
+takes are prevented at creation — the record button is disabled while the
+playhead sits inside an existing take.
 
 A banner appears if any take is stale against the current export profile
-revision, offering to delete the affected takes or revert the profile.
+revision (`ExportProfile.reconcileRevision`), offering to delete the affected
+takes. Reverting the profile settings is not offered — no per-revision settings
+history is stored (OPEN_QUESTIONS.md Q-008).
 
 Re-export bakes takes in; the pre-voiceover export is retained until the new one
 succeeds.
