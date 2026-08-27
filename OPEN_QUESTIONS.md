@@ -5,7 +5,7 @@ DECISIONS.md and delete the entry here.
 
 ## Q-001: App name and bundle identifier
 
-- **Blocking:** no — needed before Phase 8, but the bundle ID is baked into the
+- **Blocking:** no — needed before Phase 9, but the bundle ID is baked into the
   project at Phase 1 and changing it later invalidates provisioning
 - **Options:** "StudyLapse" is a working title used throughout this suite. It is
   descriptive and almost certainly taken or close to taken on the App Store
@@ -14,7 +14,7 @@ DECISIONS.md and delete the entry here.
 
 ## Q-002: What exactly the v2 focus analysis reports
 
-- **Blocking:** Phase 9 only
+- **Blocking:** Phase 10 only
 - **Options:** (a) objective metrics only — face present/absent, away-from-desk
   count, longest unbroken stretch, focus timeline; (b) objective metrics plus a
   natural-language summary generated from those numbers; (c) something richer
@@ -35,7 +35,7 @@ DECISIONS.md and delete the entry here.
 
 ## Q-004: Paid developer program — who enrols and when
 
-- **Blocking:** Phase 8 hard-blocks on it; Phase 7's home screen widget is
+- **Blocking:** Phase 9 hard-blocks on it; Phase 7's home screen widget is
   already deferred because App Groups require it
 - **Options:** the account holder enrols as an individual (membership cannot have
   additional members, so the developer would sign in with the holder's Apple ID

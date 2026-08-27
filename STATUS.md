@@ -1,7 +1,7 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 5 of 9 — Library and stats (not started). Phases 0–4 are
+**Current phase:** 5 of 11 — Library and stats (not started). Phases 0–4 are
 **complete**. Phase 4 merged to `main` (fast-forward, at `88b890f`) and all
 six criteria signed off by the developer 2026-08-27.
 **Next action:** Start Phase 5 per BUILD.md — library grid + session detail
@@ -13,7 +13,7 @@ and §8 are the screen specs; `ClipsDebugView` is the throwaway this replaces.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
 far) are functional-only — no design tokens, no polish. Visual work is
-deliberately deferred; docs/UI.md §"Design tokens" + Phase 7 own it. Don't
+deliberately deferred; docs/UI.md §"Design tokens" + Phase 8 own it. Don't
 treat the current look as a baseline to preserve.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
@@ -128,7 +128,7 @@ streaming, Instruments, and any paid-program entitlement.
   - Known rough edge (cosmetic, not blocking): `TagSliderView`'s per-segment
     tag label is positioned with a hand-rolled offset and will read wrong on
     some layouts — the drag handles (criterion 4) are correct. UI polish is
-    Phase 7 / a later pass.
+    Phase 8.
 
 - **Phase 3 — Export with a burned-in timer, saved to Photos** (2026-08-27) —
   all six acceptance criteria confirmed on device 2026-08-27 (developer
@@ -229,7 +229,7 @@ the same day.
 
 Known limitations (not bugs, revisit later):
 - Every screen so far is functional-only — no design tokens, no polish.
-  Deliberate; docs/UI.md §"Design tokens" + Phase 7. Not a baseline to preserve.
+  Deliberate; docs/UI.md §"Design tokens" + Phase 8. Not a baseline to preserve.
 - The final timer value (session total) is visible for the last frame only;
   the penultimate value fills the rest of the tail. Smooth later if it reads
   wrong.
@@ -254,7 +254,7 @@ Known caveats (still relevant for later phases):
 
 ## Blocked
 
-- **Q-004** paid developer program enrolment — no phase blocker until Phase 8,
+- **Q-004** paid developer program enrolment — no phase blocker until Phase 9,
   but it has real lead time. Raise it now.
 
 Not blocking, but constraining while there is no Mac:
@@ -735,3 +735,20 @@ Newest last. One line per session: date, what moved, how it ended.
   complete**, moved to Done. Developer flagged that the tagging UI (and every
   screen so far) needs a real design pass in a later phase — noted as a known
   limitation. Next: Phase 5 (library + stats).
+- 2026-08-27 — build-plan change, no code: developer asked for a dedicated UI
+  polish phase between the old Phase 7 (Live Activity/guards/dimming) and
+  Phase 8 (Ship), since no phase through 7 touches visual design and shipping
+  an unpolished app would be a mistake. Inserted **Phase 8 — UI polish**
+  (applies docs/UI.md's Design tokens section to all screens, fixes the
+  `TagSliderView` label and final-timer-frame rough edges already logged
+  above, adds Library/Stats empty states, a VoiceOver pass) in BUILD.md;
+  renumbered old Phase 8 (Ship) → **Phase 9** and old Phase 9 (v2 focus
+  analysis) → **Phase 10**, and added Phase 8 to Ship's `Depends on`. Updated
+  every cross-reference to the renumbered phases in OPEN_QUESTIONS.md (Q-001,
+  Q-002, Q-004) and docs/CAPTURE.md (the v2 Vision-analysis non-goal); left
+  the several existing "Phase 7" references alone where they're genuinely
+  Phase 7 scope (dimming, ghost overlay, intro/outro cards) and only repointed
+  the three that were actually about design-token polish (this file's UI
+  note, the Phase 4 Done known-rough-edge, and the Known-limitations bullet)
+  to Phase 8. STATUS.md's phase count updated 5-of-9 → 5-of-11. No source
+  files touched; Phase 5 is still next and unaffected.

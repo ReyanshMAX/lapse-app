@@ -16,7 +16,7 @@ scales it further from there.
   entire point
 - No audio capture (D-014)
 - No stabilisation, filters, manual focus UI, or resolution picker in v1
-- No frame-level Vision analysis in v1 (that is the v2 feature, BUILD Phase 9)
+- No frame-level Vision analysis in v1 (that is the v2 feature, BUILD Phase 10)
 
 ## Session configuration
 

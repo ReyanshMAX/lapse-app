@@ -444,7 +444,73 @@ Everything that makes the day-spanning session model actually usable.
 
 ---
 
-## Phase 8 — Ship
+## Phase 8 — UI polish
+
+Every screen through Phase 7 is functional-only — no design tokens, no
+aesthetic pass (see STATUS.md's running "UI note" and the Phase 4/7 Done
+entries). This phase is the one place that debt gets paid, deliberately
+scheduled after every feature screen exists and before Phase 9 ships any of
+them. Nothing in this phase changes behavior, data flow, or acceptance
+criteria already met by earlier phases — it is a visual and interaction
+pass over screens that already work.
+
+**Scope**
+- Apply docs/UI.md's "Design tokens" section (background/surface/text/accent
+  colors, SF Pro Text / SF Mono type, 14pt corner radius, 4/8/12/16/24/32
+  spacing scale) consistently across all six screens plus Stats
+- Record (idle / recording / paused), Tagging (segment list + slider),
+  Export, Voiceover, Library, and Stats all restyled to the token set —
+  no screen skipped
+- Fix the known rough edges called out in STATUS.md: `TagSliderView`'s
+  hand-rolled per-segment tag label offset (Phase 4 Done), and the
+  penultimate-vs-final timer value on the last export frame (Known
+  limitations)
+- Empty states for Library (no sessions yet) and Stats (no data yet) —
+  currently unspecified, add them to docs/UI.md as part of this phase
+  rather than leaving them blank
+- Loading/transition states: render progress, tag-sheet open/close, tab
+  switches — smooth within "system defaults and the recording pulse" per
+  docs/UI.md's animation non-goal (do not add animation beyond that)
+- VoiceOver pass: confirm the Record screen's coarser-cadence timer label
+  (docs/UI.md Notes) and add accessibility labels anywhere a screen is
+  icon-only or color-only
+- Tag chip and calendar-heatmap color assignment reviewed for contrast
+  against the dark palette, not just "does it render"
+
+**Non-goals for this phase**
+- No new screens, no new user-facing features, no new SwiftData fields
+- No light/dark toggle, no iPad layout, no landscape — docs/UI.md's
+  non-goals stand
+- No changes to `TagRangeMath`, `TimeAxis`, export composition, or any
+  other model/logic layer — this phase touches SwiftUI views and
+  docs/UI.md only
+- Live Activity visual polish stays in Phase 7's scope, not duplicated here
+
+**Interface contracts established:** none — this phase restyles existing
+views, it does not introduce new types or protocols.
+
+**Acceptance criteria**
+- [ ] `[ci]` the app still builds and every existing simulator test still
+      passes with no logic changes — a diff review confirms no file outside
+      `Features/`, `Shared/`, and docs/UI.md changed
+- [ ] `[eyes-on]` every screen (Record ×3 states, Tagging ×2 modes, Export,
+      Voiceover, Library, Stats) uses the docs/UI.md token palette with no
+      leftover system-default colors or fonts
+- [ ] `[eyes-on]` the `TagSliderView` per-segment label reads correctly at
+      both a short (single-segment) and a long (9-hour, many-segment)
+      session
+- [ ] `[eyes-on]` Library and Stats each show a designed empty state on a
+      fresh install with zero sessions, not a blank screen
+- [ ] `[eyes-on]` VoiceOver reads the Record-screen timer label and every
+      icon-only control without a missing or generic ("button") label
+- [ ] `[eyes-on]` the developer's read on the whole app, screen to screen, is
+      "looks finished," not "looks like a prototype"
+
+**Depends on:** Phases 5, 6, 7 (every screen it restyles must exist first)
+
+---
+
+## Phase 9 — Ship
 
 **Scope**
 - App icon, launch screen, App Store screenshots
@@ -463,11 +529,11 @@ Everything that makes the day-spanning session model actually usable.
       record → tag → export → voiceover → share loop without a crash
 - [ ] `[eyes-on]` submitted to App Store Connect and accepted for review
 
-**Depends on:** Phases 5, 6, 7
+**Depends on:** Phases 5, 6, 7, 8
 
 ---
 
-## Phase 9 — v2: on-device focus analysis
+## Phase 10 — v2: on-device focus analysis
 
 Deferred. Do not begin until Q-002 is answered.
 
