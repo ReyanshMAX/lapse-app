@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 import StudyLapseCore
@@ -81,6 +82,7 @@ final class ExportCoordinator {
             lastExportURL = url
             progress = 1
             DebugLog.write("Export", "wrote \(url.lastPathComponent), \(plan.outputDuration)s, \(size) bytes")
+            await logTrackSummary(of: url)
         } catch {
             progress = nil
             lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -90,6 +92,23 @@ final class ExportCoordinator {
 
     func cancel() {
         exporter.cancel()
+    }
+
+    /// Reads the finished file's tracks back and logs them — the render can't
+    /// run in CI, so this is how BUILD.md Phase 3 criterion 3 ("an audio track
+    /// of the full duration") gets verified on device: check the debug log.
+    private func logTrackSummary(of url: URL) async {
+        let asset = AVURLAsset(url: url)
+        let fileSeconds = ((try? await asset.load(.duration))?.seconds) ?? 0
+        let video = (try? await asset.loadTracks(withMediaType: .video)) ?? []
+        let audio = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
+        var audioSeconds = 0.0
+        if let track = audio.first {
+            audioSeconds = ((try? await track.load(.timeRange))?.duration.seconds) ?? 0
+        }
+        DebugLog.write("Export", String(format:
+            "verify: %d video + %d audio track(s); file %.2fs, audio track %.2fs",
+            video.count, audio.count, fileSeconds, audioSeconds))
     }
 
     // MARK: Plan construction (main actor — reads @Model state)

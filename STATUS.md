@@ -191,9 +191,13 @@ Record a session with a few pause/resume cycles so it has ≥3 finalized clips
    a near-boundary match still reads as one. (Note: fit-to-15s on a *long*
    multi-hour session does
    **not** clamp any more — that's a fast, honoured 15 s video.)
-3. `[device]` **Audio track spans the whole file.** The export has one silent
-   audio track for the full duration (open in QuickTime / check it's not
-   video-only). This matters for Phase 6 voiceover.
+3. `[device]` **Audio track spans the whole file.** The export always adds a
+   silent audio track for the full video length (no audio is captured — D-014 —
+   but Phase 6 mixes the voiceover onto this track, and a video-only file
+   misbehaves on some platforms). After a render, the debug log prints a line
+   like `Export verify: 1 video + 1 audio track(s); file 36.00s, audio track
+   36.00s` — criterion 3 passes when audio count is 1 and the two durations
+   match.
 4. `[device]` **Zero finalized clips → typed error, no crash.** Hard to hit
    from the UI now (the Export row only appears when there's ≥1 finalized
    clip); if you can get there, the screen shows "This session has no finished
