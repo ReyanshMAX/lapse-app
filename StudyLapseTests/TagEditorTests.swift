@@ -88,6 +88,8 @@ final class TagEditorTests: XCTestCase {
         XCTAssertEqual(editor.ranges[0].tags, ["calculus", "physics"])
         XCTAssertEqual(session.tagRanges.first?.tagNames, ["calculus", "physics"])
         XCTAssertEqual(TagCatalog.existingTag(named: "calculus", in: context)?.useCount, 1)
+        XCTAssertEqual(TagCatalog.existingTag(named: "calculus", in: context)?.displayName, "Calculus",
+                       "the Tag row keeps the user's casing even though the range stores the normalised name")
     }
 
     func testRandomOperationSequenceKeepsPersistedRowsTiling() {

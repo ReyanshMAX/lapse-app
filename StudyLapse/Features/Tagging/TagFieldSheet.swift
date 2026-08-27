@@ -2,8 +2,13 @@ import SwiftData
 import SwiftUI
 
 /// Tag field with autocomplete from the `Tag` table (docs/UI.md §4). Multi-select
-/// per range; an empty result is allowed. Returns the chosen display names to
-/// the caller, which routes them through `TagEditor.setTags`.
+/// per range; an empty result is allowed.
+///
+/// `chosen` holds **display** strings (the user's casing, or a known tag's
+/// `displayName`), not normalised names — `TagEditor.setTags` does the
+/// normalising for storage and passes the raw string to `TagCatalog.ensure` so
+/// `Tag.displayName` keeps the casing (docs/DATA_MODEL.md). De-dup compares
+/// normalised forms.
 struct TagFieldSheet: View {
     let initial: [String]
     let context: ModelContext
@@ -17,17 +22,23 @@ struct TagFieldSheet: View {
         self.initial = initial
         self.context = context
         self.onSave = onSave
-        _chosen = State(initialValue: initial)
+        // `initial` is normalised names from the row — recover display casing
+        // from the Tag table where we can.
+        _chosen = State(initialValue: initial.map { name in
+            TagCatalog.existingTag(named: name, in: context)?.displayName ?? name
+        })
     }
+
+    private var chosenNames: Set<String> { Set(chosen.map { TagCatalog.normalize($0) }) }
 
     private var suggestions: [Tag] {
         TagCatalog.suggestions(matching: draft, in: context)
-            .filter { !chosen.contains($0.name) }
+            .filter { !chosenNames.contains($0.name) }
     }
 
     private var canAddDraft: Bool {
         let n = TagCatalog.normalize(draft)
-        return !n.isEmpty && !chosen.contains(n)
+        return !n.isEmpty && !chosenNames.contains(n)
     }
 
     var body: some View {
@@ -61,7 +72,7 @@ struct TagFieldSheet: View {
                     }
                     ForEach(suggestions, id: \.name) { tag in
                         Button {
-                            chosen.append(tag.name)
+                            chosen.append(tag.displayName)
                             draft = ""
                         } label: {
                             HStack {
@@ -91,7 +102,7 @@ struct TagFieldSheet: View {
 
     private func addDraft() {
         guard canAddDraft else { return }
-        chosen.append(TagCatalog.normalize(draft))
+        chosen.append(draft.trimmingCharacters(in: .whitespacesAndNewlines))
         draft = ""
     }
 }
