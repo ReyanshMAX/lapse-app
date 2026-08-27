@@ -278,10 +278,13 @@ final class ExportTests: XCTestCase {
 
     #if !targetEnvironment(simulator)
     /// Full render — only runs on a physical device (the simulator's
-    /// CoreAnimationTool path crashes the process).
+    /// CoreAnimationTool path crashes the process). Checks the rendered file
+    /// itself: duration, audio track, and that the timer overlay actually
+    /// burned in (the timer corner changes between the first and last frame,
+    /// while an empty corner stays static).
     func testFullRenderOnDevice() async throws {
         let session = try await makeSession(clipCount: 2, framesPerClip: 60)
-        let exportProfile = profile(session)
+        let exportProfile = profile(session)   // topRight corner, 9:16
         let plan = try ExportCoordinator.buildPlan(session: session, profile: exportProfile)
         let url = try await AVFoundationSessionExporter().export(ExportRequest(plan: plan),
                                                                 progress: { _ in })
@@ -294,6 +297,22 @@ final class ExportTests: XCTestCase {
                        accuracy: 0.1)
         let audio = try await asset.loadTracks(withMediaType: .audio)
         XCTAssertEqual(audio.count, 1)
+        let videoSize = try await asset.loadTracks(withMediaType: .video).first?.load(.naturalSize)
+        XCTAssertEqual(videoSize, CGSize(width: 1080, height: 1920))
+
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let first = try await generator.image(at: .zero).image
+        let last = try await generator.image(
+            at: CMTimeSubtract(duration, CMTime(value: 1, timescale: 30))).image
+
+        let timerCorner = CGRect(x: 1080 - 460, y: 0, width: 460, height: 280)
+        XCTAssertGreaterThan(PixelAssertions.fractionDiffering(first, last, in: timerCorner), 0.005,
+                             "the burned-in timer did not change between t=0 and t=end")
+        let emptyCorner = CGRect(x: 0, y: 1920 - 280, width: 460, height: 280)
+        XCTAssertLessThan(PixelAssertions.fractionDiffering(first, last, in: emptyCorner), 0.02,
+                          "a corner with no overlay changed unexpectedly")
     }
     #endif
 }

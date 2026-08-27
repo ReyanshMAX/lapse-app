@@ -182,9 +182,11 @@ Record a session with a few pause/resume cycles so it has ≥3 finalized clips
 2. `[device]` **fit-to-15s on a long session clamps and the UI tells the
    truth.** Switch Speed to "Fit to duration", pick 15 s, on a session with a
    good hour+ of study time. "Estimated length" must show the *clamped* value
-   (well above 15 s → really it will be a few seconds of video for a 9 h
-   session; the point is UI number == the file you get), not 15 s. Render and
-   confirm the file's duration equals what the UI said.
+   (for a 9 h session that's ~4 s of video, not 15 s). Render and confirm the
+   file's duration equals what the UI said. Expect up to ±1 output frame
+   (~33 ms) of slop — the export quantizes to whole 30 fps frames — well
+   inside the criterion's 100 ms. The screen shows two decimals so a
+   near-boundary match still reads as a match.
 3. `[device]` **Audio track spans the whole file.** The export has one silent
    audio track for the full duration (open in QuickTime / check it's not
    video-only). This matters for Phase 6 voiceover.

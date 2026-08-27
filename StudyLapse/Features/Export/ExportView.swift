@@ -106,7 +106,7 @@ private struct ExportControls: View {
 
             Section("Output") {
                 LabeledContent("Estimated length",
-                               value: String(format: "%.1fs", estimatedDuration))
+                               value: String(format: "%.2fs", estimatedDuration))
                 if isClamped {
                     Text("Clamped to the minimum speed for this capture interval — "
                          + "the video can't be slower than one captured frame per output frame.")
@@ -118,7 +118,10 @@ private struct ExportControls: View {
 
             renderSection
         }
-        .onChange(of: profileSignature) { _, _ in profile.revision += 1 }
+        // NOTE: docs/DATA_MODEL.md says `revision` bumps on any profile edit,
+        // to invalidate stale voiceover takes. Nothing reads it before Phase 6
+        // (voiceover), and doing it here risks bumping on screen-open. Phase 6
+        // owns "profile-revision staleness detection" — it wires this properly.
     }
 
     @ViewBuilder
@@ -174,11 +177,5 @@ private struct ExportControls: View {
         if case .failed(let message) = saveState {
             Text(message).foregroundStyle(.red).font(.footnote)
         }
-    }
-
-    private var profileSignature: String {
-        [profile.speedModeRaw, "\(profile.speedMultiplier)", "\(profile.targetDurationSeconds)",
-         profile.aspectRaw, profile.overlayStyleRaw, profile.overlayCornerRaw,
-         "\(profile.includeIntroCard)", "\(profile.includeOutroCard)"].joined(separator: "|")
     }
 }
