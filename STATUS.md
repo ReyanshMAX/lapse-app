@@ -1,15 +1,17 @@
 # Status
 
-**Last updated:** 2026-08-26
+**Last updated:** 2026-08-27
 **Current phase:** 2 of 9 — A real multi-clip session with correct study time
-**Next action:** Phase 2 in progress. Criterion 1 (`[ci]` StudyLapseCore tests)
-is already green — the [120,300,60]→480, dayKey-02:30, and closeDeadline cases
-were all written and passing in Phase 0 (run 33021301863). Next unbuilt piece:
-the SwiftData entities in `StudyLapse/Model/` per docs/DATA_MODEL.md plus an
-in-memory `ModelContainer` helper for the simulator test target (compile-only
-commit), then `studyOffsetStart` recompute + tiling-invariant simulator test,
-then `SyntheticFrameSource` monotonic-PTS fix + chunk rollover (D-015), then
-`ClipRecovery`, then `SessionCoordinator`, then the record screen + app wiring.
+**Next action:** Phase 2 is code-complete and green on CI (run after commit
+wiring SwiftData + SessionCoordinator into the app). Every `[ci]`-reachable
+piece is built and tested: SwiftData entities, `StudyOffsets.recompute`,
+chunked writing with frame-safe rollover (D-015), `ClipRecovery`,
+`SessionCoordinator` (start/pause/resume/end, scene-phase auto-pause, launch
+recovery), and the Phase 2 record screen. **All that remains is developer
+device/eyes-on verification** — see *Needs developer verification*. Nothing
+for the agent to build here; the next agent action is Phase 3 (export with a
+burned-in timer) once the developer has run the sideload checks, OR picking up
+any device-check failures they report.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -78,22 +80,42 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 2 — A real multi-clip session with correct study time** — in
-  progress. See BUILD.md for full scope/interface contracts. Builds
-  `SessionCoordinator` and chunked writing (D-015) on top of Phase 1's
-  `CaptureController`, plus the SwiftData stack from docs/DATA_MODEL.md.
-  - `[ci]` criterion 1 (StudyLapseCore tests) — **done**, satisfied verbatim by
-    the Phase 0 test suite (`testTotalStudySecondsSumsClipDurations`,
-    `testDayKeyBeforeCutoffBelongsToPreviousDay`,
-    `testCloseDeadlineLandsAtCutoffTheFollowingDay`), green on run 33021301863.
-  - Phase 0's "Deferred to Mac access" note (day-boundary tests re-run on
-    Apple's Foundation before Phase 2 closes) is **discharged**: the `core` CI
-    job runs `swift test` on `macos-latest`, which is Apple's Foundation, not
-    swift-corelibs.
-  - Criteria 2, 3, 4 are tagged `[device]` in BUILD.md but are all listed as
-    CI-verifiable in docs/TESTING.md ("Fully verifiable in CI with no camera").
-    Plan: write them as `simulator`-job tests so CI exercises them, but leave
-    the boxes unchecked per LOOP.md — see Deviations for the doc conflict.
+- **Phase 2 — A real multi-clip session with correct study time** — code
+  complete, awaiting device verification only. Everything below is built,
+  committed, and green on CI.
+  - **SwiftData stack** — all seven `@Model` entities from docs/DATA_MODEL.md in
+    `StudyLapse/Model/`, `ModelContainerFactory` (on-disk + in-memory).
+  - **`StudyOffsets.recompute(for:)`** — reassigns `studyOffsetStart` across a
+    session's finalized clips so the tiling invariant holds after any
+    finalize/recover/delete. `runningTotal(for:)` gives a new clip its offset.
+  - **Chunked writing (D-015)** — `CaptureController.startRecording` /
+    `stopRecording`: continuous capture rolling a new chunk every 120s of
+    recorded source-PTS or 1000 frames. The threshold frame becomes frame 0 of
+    the next chunk (no boundary loss); trailing chunk returned from
+    `stopRecording`, rollover chunks delivered via `onClipFinalized`. Single
+    `FinalizedClip` value type crosses the queue boundary, never a `@Model`.
+    `SyntheticFrameSource` now has a monotonic tick cursor across `emit` calls.
+  - **`ClipRecovery`** — `recoverUnfinalized` repairs or deletes
+    `isFinalized == false` rows from whatever `AVURLAsset` can still read;
+    `demoteRecordingSessions` moves `.recording` → `.paused` at launch.
+  - **`SessionCoordinator`** — `@MainActor @Observable`; start/pause/resume/end,
+    `handleScenePhase` (background→auto-pause D-016, active→day-boundary
+    auto-close D-004), `recoverOnLaunch` (recover + re-attach to the newest
+    open session). `studySeconds` free-runs at 1 Hz while recording, reconciles
+    to the persisted clip total on every stop.
+  - **App wiring** — `StudyLapseApp` builds the container, owns the coordinator,
+    runs `recoverOnLaunch`, forwards `scenePhase`. `RecordView` is the Phase 2
+    screen: study-time timer, clip count, record/pause/resume/end.
+  - **Tests, all green in the `simulator` job** (15 tests): `StudyOffsetsTests`
+    (incl. 200-iteration random op sequence), `ClipRecoveryTests` (real file
+    truncation), `SessionCoordinatorTests` (4-not-14-min study time, survives
+    simulated app kill + resumes, backgrounding auto-pause), and
+    `CaptureControllerTests.testChunkRolloverPreservesTotalFrameCount`.
+  - `[ci]` criterion 1 — **done** (Phase 0 suite; box checked in BUILD.md).
+    Phase 0's "re-run day-boundary tests on Apple's Foundation" deferral is
+    discharged — the `core` job runs `swift test` on macOS.
+  - Criteria 2/3/4 (`[device]`) and 5/6 (`[eyes-on]`) — see *Needs developer
+    verification*. The agent does not check these.
 
 ## Next up
 
@@ -103,9 +125,47 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Needs developer verification
 
-Nothing open right now. Anything completed during an unattended session that
-carries a `[device]` or `[eyes-on]` criterion goes here, with what to look for
-on the phone. The agent never checks those boxes itself.
+Sideload the latest green `StudyLapse-unsigned-ipa` and check the following.
+Every one has a matching CI simulator test that already passes — these confirm
+it also holds on a real camera / real device. Check the BUILD.md Phase 2 boxes
+yourself once confirmed.
+
+**Phase 2, criterion 2 — `studyOffsetStart` tiling invariant (`[device]`)**
+- BUILD.md tags this `[device]`; docs/TESTING.md says CI-verifiable. It is
+  verified in `StudyOffsetsTests` (simulator job), including a 200-iteration
+  random insert/finalize/delete sequence. Decide whether that suffices or you
+  want an on-device check too. No app UI surfaces offsets directly — the
+  simplest device check is: record a multi-clip session, end it, and confirm
+  the timer's final value equals the sum of the clip study durations.
+
+**Phase 2, criterion 3 — force-quit recovery (`[device]`)**
+- Start recording, let it run past ~10s, then force-quit from the app switcher
+  mid-clip. Relaunch. Expect: app opens on a `.paused` session (not
+  `.recording`), the debug log shows `Recovery` lines, at most ~120s of study
+  time is missing, and no clip is stuck unfinalized (subsequent resume/end
+  works and the timer total is sane).
+
+**Phase 2, criterion 4 — `.recording` session demoted on launch (`[device]`)**
+- Covered by the same force-quit test: after relaunch the session must be
+  `.paused`, never `.recording`.
+
+**Phase 2, criterion 5 — study time excludes time away (`[eyes-on]`)**
+- Record ~2 min. Pause. Leave the app / lock the phone for ~10 min. Reopen,
+  Resume, record ~2 min more. End. The timer must read ~4 min, not ~14 min.
+
+**Phase 2, criterion 6 — session survives a full kill (`[eyes-on]`)**
+- After the criterion-5 run, before ending: force-quit the app entirely and
+  relaunch. The session and its accumulated study time / clip count must still
+  be there, resumable.
+
+Known caveats when checking:
+- Free-ID cert expires ~7 days after signing; re-sideload if the app stops
+  launching with no code change.
+- The recording screen has no camera preview by design (docs/UI.md, Q-005) —
+  a black screen with a timer is correct, not a bug.
+- Screen dimming while recording is Phase 7, not wired yet.
+- `ghost.jpg` / `thumbnail.jpg` generation on clip finalize / session end is
+  deferred to the phases that consume them (7 and 5) — see Deviations.
 
 ## Blocked
 
@@ -123,6 +183,25 @@ Not blocking, but constraining while there is no Mac:
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
+
+- 2026-08-27, Phase 2: `CaptureController` interface. docs/CAPTURE.md showed a
+  session-aware surface (`start(session:)` / `pause()` / `resume(session:)` /
+  `end(session:)`). That contradicts D-026 and docs/ARCHITECTURE.md's
+  dependency direction — the capture layer must not import the model layer.
+  Kept `CaptureController` media-only: it takes a `FrameSource`, emits
+  `FinalizedClip` values, and `SessionCoordinator` (model layer, main actor)
+  does all persistence. Updated the docs/CAPTURE.md snippet in the same commit
+  to match, and tightened its D-015 wording (rollover is measured as source-PTS
+  delta from the chunk's first accepted frame, not "wall time").
+
+- 2026-08-27, Phase 2: `ghost.jpg` (last frame of the most recent finalized
+  clip) and `thumbnail.jpg` (first frame of clip 000) — docs/CAPTURE.md and
+  docs/ARCHITECTURE.md mention writing these at clip finalize / session end.
+  Deferred: the ghost overlay is an explicit Phase 2 non-goal (BUILD.md) and
+  lands in Phase 7; the library thumbnail is first shown in Phase 5. Writing
+  the JPEGs now would be untested image-extraction code with no consumer.
+  `SessionCoordinator.persistFinalizedClip` and `end()` are the insertion
+  points when those phases arrive.
 
 - 2026-08-26, Phase 2: BUILD.md Phase 2 tags criteria 2 (`studyOffsetStart`
   tiling invariant test), 3 (force-quit recovery: ≤120s lost, no
@@ -363,3 +442,24 @@ Newest last. One line per session: date, what moved, how it ended.
   returns. Next session starts Phase 2 (SwiftData stack, `SessionCoordinator`,
   chunked writing at 120s/1000 frames, scene-phase auto-pause, launch
   recovery) per BUILD.md.
+- 2026-08-27 — Phase 2, code-complete in one session, no three-strike stalls.
+  Commits, each green on CI: (1) STATUS/BUILD — criterion 1 marked done
+  (Phase 0 suite covers it verbatim), `[device]`-tag conflict on criteria
+  2/3/4 logged; (2) seven SwiftData `@Model` entities + `ModelContainerFactory`;
+  (3) `StudyOffsets.recompute` + `StudyOffsetsTests` (incl. 200-iter random
+  op sequence); (4) chunked writing with frame-safe PTS-based rollover (D-015),
+  `SyntheticFrameSource` monotonic tick cursor, rollover frame-sum test;
+  (5) `ClipRecovery` (repair/delete unfinalized, demote `.recording`) +
+  `ClipRecoveryTests` with real file truncation; (6) `SessionCoordinator` —
+  one red run first (`DayBoundary` needed `import StudyLapseCore` in the app
+  target, which had never imported the package before), fixed and green;
+  (7) app wiring + Phase 2 `RecordView`. Then an `NSLock` async-context
+  warning in a test helper fixed (`withLock`). 15 simulator tests + 20 core
+  tests all green. Interface tension resolved in `CaptureController`'s favour
+  (media-only, per D-026) with docs/CAPTURE.md updated in the same commit;
+  `ghost.jpg`/`thumbnail.jpg` deferred to Phases 7/5 — both logged under
+  Deviations. Phase 2 stays *In progress*: all six remaining criteria are
+  `[device]`/`[eyes-on]` and written up under *Needs developer verification*
+  with exact repro steps. Session ended cleanly with the repo green; next
+  agent action is Phase 3 once the developer signs off, or fixing any
+  device-check failures they report.

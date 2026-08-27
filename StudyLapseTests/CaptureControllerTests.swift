@@ -111,21 +111,17 @@ final class FinalizedCollector: @unchecked Sendable {
     private var clips: [FinalizedClip] = []
 
     func append(_ clip: FinalizedClip) {
-        lock.lock(); defer { lock.unlock() }
-        clips.append(clip)
+        lock.withLock { clips.append(clip) }
     }
 
     func sortedByIndex() -> [FinalizedClip] {
-        lock.lock(); defer { lock.unlock() }
-        return clips.sorted { $0.index < $1.index }
+        lock.withLock { clips.sorted { $0.index < $1.index } }
     }
 
     func waitUntilTotalFrames(_ target: Int, timeout: TimeInterval) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            lock.lock()
-            let total = clips.reduce(0) { $0 + $1.frameCount }
-            lock.unlock()
+            let total = lock.withLock { clips.reduce(0) { $0 + $1.frameCount } }
             if total >= target { return true }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
