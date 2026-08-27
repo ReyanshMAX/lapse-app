@@ -332,12 +332,19 @@ StudyLapseCore/Sources/StudyLapseCore/TagRangeMath.swift
 ```
 
 **Acceptance criteria**
-- [ ] `[ci]` `validate` returns true after any sequence of split, merge, and
+- [x] `[ci]` `validate` returns true after any sequence of split, merge, and
       resize operations, verified by a property test over random operation
       sequences
-- [ ] `[ci]` resizing a boundary never produces a zero-length or negative
+      — `TagRangeMathTests.testTilingInvariantHoldsUnderRandomOperationSequences`
+      (≥1000 cases), green on CI run 33052241705
+- [x] `[ci]` resizing a boundary never produces a zero-length or negative
       range
+      — `TagRangeMathTests.testResizeNeverProducesDegenerateRangeOverRandomSequences`
+      (50 trials × 400 ops, splits interleaved), green on CI run 33052241705
 - [ ] `[device]` ending a session seeds exactly one range per finalized clip
+      — proven in CI by `TagRangeSeedingTests` (pure model math, no
+      device-specific behaviour; same `[device]`-tag conflict as Phase 2's
+      criteria 2/3/4). Awaiting developer sign-off.
 - [ ] `[eyes-on]` dragging a slider handle on a 9-hour session moves the boundary
       smoothly and the adjacent durations update live
 

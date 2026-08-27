@@ -25,6 +25,13 @@ enum CaptureWarning: Equatable {
 @Observable
 final class SessionCoordinator {
     private(set) var session: Session?
+    /// The session most recently ended by `end()`, kept so the End-Session
+    /// button in `RecordView` can push the tagging flow after `session` is
+    /// cleared. Not observed via `onChange` — `end()` is also reachable from
+    /// the day-boundary auto-close, which must not pop a screen.
+    /// (Extends BUILD.md's Phase 2 `SessionCoordinator` contract — see
+    /// STATUS.md Deviations.)
+    private(set) var lastEndedSession: Session?
     private(set) var status: SessionStatus = .ended
     private(set) var studySeconds: Double = 0
     private(set) var warnings: [CaptureWarning] = []
@@ -116,8 +123,13 @@ final class SessionCoordinator {
         setIdleTimerDisabled(false)
         reconcileStudySeconds()
         stopTicking()
+        if let session {
+            TagRangeSeeding.ensureSeeded(for: session, in: context)
+            DebugLog.write("Session", "seeded \(session.tagRanges.count) tag range(s)")
+        }
         try? context.save()
         DebugLog.write("Session", "ended; \(clipCount) clips, \(Int(studySeconds))s study")
+        lastEndedSession = session
         session = nil
     }
 
