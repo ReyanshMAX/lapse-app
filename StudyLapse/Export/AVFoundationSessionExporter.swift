@@ -22,11 +22,29 @@ final class AVFoundationSessionExporter: SessionExporter {
         activeExport?.cancelExport()
     }
 
+    /// The assembled composition, ready to render. Split out from `export` so
+    /// the composition graph is inspectable in CI without running
+    /// `AVAssetExportSession` + `AVVideoCompositionCoreAnimationTool`, which
+    /// crash the iOS Simulator ("Lost connection to IOSurface Remote Server").
+    struct Prepared {
+        let composition: AVMutableComposition
+        let videoComposition: AVMutableVideoComposition
+        let overlay: OverlayLayers
+        let outputDuration: Double
+        /// The silent-track source file. It is referenced by the composition
+        /// and must stay on disk until the render finishes.
+        let silentAudioURL: URL?
+    }
+
     func export(_ request: ExportRequest,
                 progress: @escaping (Double) -> Void) async throws -> URL {
         isCancelled = false
-        let plan = request.plan
+        let prepared = try await prepare(request.plan)
+        defer { prepared.silentAudioURL.map { try? FileManager.default.removeItem(at: $0) } }
+        return try await render(prepared, sessionID: request.plan.sessionID, progress: progress)
+    }
 
+    func prepare(_ plan: ExportPlan) async throws -> Prepared {
         guard !plan.clips.isEmpty else { throw ExportError.noFinalizedClips }
 
         // MARK: 1 — compose video
@@ -73,10 +91,10 @@ final class AVFoundationSessionExporter: SessionExporter {
         composition.scaleTimeRange(CMTimeRange(start: .zero, duration: composedDuration),
                                    toDuration: scaledDuration)
 
-        // MARK: 3 — full-length silent audio track (D-014)
+        // MARK: 3 — full-length silent audio track (D-014). The source file
+        // stays on disk (referenced by the composition) until the render ends.
         let fullDuration = composition.duration
         let silentURL = try SilentAudio.makeFile(duration: fullDuration.seconds)
-        defer { try? FileManager.default.removeItem(at: silentURL) }
         let silentAsset = AVURLAsset(url: silentURL)
         let silentTracks = try await silentAsset.loadTracks(withMediaType: .audio)
         if let silentTrack = silentTracks.first,
@@ -108,7 +126,8 @@ final class AVFoundationSessionExporter: SessionExporter {
         instruction.layerInstructions = [layerInstruction]
         videoComposition.instructions = [instruction] as [any AVVideoCompositionInstructionProtocol]
 
-        // MARK: 5 — overlay
+        // MARK: 5 — overlay layer tree (the `AVVideoCompositionCoreAnimationTool`
+        // itself is built in `render`, off the CI path)
         let overlay = OverlayLayerBuilder.build(
             renderSize: renderSize,
             style: plan.overlayStyle,
@@ -119,24 +138,33 @@ final class AVFoundationSessionExporter: SessionExporter {
             introText: Self.introText(plan),
             includeOutroCard: plan.includeOutroCard,
             outroText: Self.outroText(plan))
-        videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
-            postProcessingAsVideoLayer: overlay.video, in: overlay.parent)
 
         try checkCancelled()
 
-        // MARK: 6 — render
-        let outURL = try Self.outputURL(for: plan.sessionID)
+        return Prepared(composition: composition, videoComposition: videoComposition,
+                        overlay: overlay, outputDuration: outputDuration,
+                        silentAudioURL: silentURL)
+    }
+
+    // MARK: Render
+
+    private func render(_ prepared: Prepared, sessionID: UUID,
+                        progress: @escaping (Double) -> Void) async throws -> URL {
+        prepared.videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+            postProcessingAsVideoLayer: prepared.overlay.video, in: prepared.overlay.parent)
+
+        let outURL = try Self.outputURL(for: sessionID)
 
         // HEVC first (docs/EXPORT.md); fall back to H.264 if the render fails —
         // the simulator's software HEVC encoder is unreliable (STATUS.md Phase 1
         // encoder history).
         var lastError: String? = nil
         for preset in [AVAssetExportPresetHEVCHighestQuality, AVAssetExportPresetHighestQuality] {
-            guard let exporter = AVAssetExportSession(asset: composition, presetName: preset) else {
+            guard let exporter = AVAssetExportSession(asset: prepared.composition, presetName: preset) else {
                 lastError = "could not create an export session for preset \(preset)"
                 continue
             }
-            exporter.videoComposition = videoComposition
+            exporter.videoComposition = prepared.videoComposition
             exporter.outputURL = outURL
             exporter.outputFileType = .mov
             exporter.shouldOptimizeForNetworkUse = true
