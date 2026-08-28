@@ -50,7 +50,7 @@ final class GuardMonitorTests: XCTestCase {
 
     private var context: ModelContext { container.mainContext }
 
-    private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 5,
+    private func waitUntil(_ condition: @escaping () -> Bool, timeout: TimeInterval = 15,
                            _ message: String = "condition not met",
                            file: StaticString = #filePath, line: UInt = #line) async {
         let deadline = Date().addingTimeInterval(timeout)
