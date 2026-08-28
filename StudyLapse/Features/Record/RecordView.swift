@@ -9,16 +9,36 @@ import UIKit
 /// export yet (BUILD.md Phase 2 non-goals).
 struct RecordView: View {
     @Environment(SessionCoordinator.self) private var coordinator
+    @Environment(\.scenePhase) private var scenePhase
     @State private var authorizationStatus: AVAuthorizationStatus = CameraPermission.status
     @State private var errorMessage: String?
     @State private var taggingSession: Session?
     @State private var pendingStartWarnings: [GuardWarningKind] = []
     @State private var showStartWarningConfirm = false
     @State private var ghostImage: UIImage?
+    @State private var previewController = CameraPreviewController()
+
+    /// The idle-screen preview (docs/UI.md screen 1) and paused "dimmed
+    /// preview" (screen 3) both show it; recording never does (screen 2,
+    /// Q-005 — unchanged by this).
+    private var showsPreview: Bool {
+        authorizationStatus == .authorized && coordinator.status != .recording
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
+                if showsPreview {
+                    CameraPreviewView(session: previewController.session)
+                        .ignoresSafeArea()
+                    FramingGuideView()
+                        .ignoresSafeArea()
+                    if coordinator.status == .paused {
+                        // "Dimmed preview" (docs/UI.md screen 3).
+                        Color.black.opacity(0.25).ignoresSafeArea()
+                    }
+                }
+
                 if coordinator.status == .paused, let ghostImage {
                     Image(uiImage: ghostImage)
                         .resizable()
@@ -46,6 +66,10 @@ struct RecordView: View {
             // palette pass is Phase 8.
             .background(coordinator.status == .recording ? Color.black : Color.clear)
             .task(id: pausedGhostKey) { await loadGhostImage() }
+            .onAppear { updatePreviewSession() }
+            .onDisappear { previewController.stop() }
+            .onChange(of: coordinator.status) { _, _ in updatePreviewSession() }
+            .onChange(of: scenePhase) { _, _ in updatePreviewSession() }
             .fullScreenCover(item: $taggingSession) { session in
                 TaggingFlowView(session: session)
             }
@@ -64,6 +88,19 @@ struct RecordView: View {
                     NavigationLink("Debug Log") { DebugLogView() }
                 }
             }
+        }
+    }
+
+    /// Starts or stops the idle-preview session to match the current screen
+    /// state — off while recording (the real capture session needs the
+    /// camera) or backgrounded, on otherwise. Runs on every relevant state
+    /// change; `CameraPreviewController` itself no-ops a redundant
+    /// start/stop, so calling this liberally is cheap.
+    private func updatePreviewSession() {
+        if showsPreview, scenePhase == .active {
+            previewController.start()
+        } else {
+            previewController.stop()
         }
     }
 
@@ -171,6 +208,11 @@ struct RecordView: View {
     private func beginRecording() {
         errorMessage = nil
         pendingStartWarnings = []
+        // Release the camera from the idle preview session before the real
+        // capture session tries to acquire it — CameraPreviewController.stop()
+        // blocks until the hardware is actually released (mirrors
+        // CameraFrameSource.stop()'s own synchronous style).
+        previewController.stop()
         do {
             try coordinator.startNewSession()
         } catch {
@@ -191,6 +233,7 @@ struct RecordView: View {
 
     private func resume() {
         errorMessage = nil
+        previewController.stop()
         do {
             try coordinator.resume()
         } catch {
@@ -209,6 +252,7 @@ struct RecordView: View {
                     _ = await CameraPermission.requestAccess()
                     authorizationStatus = CameraPermission.status
                     DebugLog.write("Permission", "camera authorization now \(authorizationStatus.rawValue)")
+                    updatePreviewSession()
                 }
             }
             .buttonStyle(.borderedProminent)
