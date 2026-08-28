@@ -11,6 +11,8 @@ struct RecordView: View {
     @State private var authorizationStatus: AVAuthorizationStatus = CameraPermission.status
     @State private var errorMessage: String?
     @State private var taggingSession: Session?
+    @State private var pendingStartWarnings: [GuardWarningKind] = []
+    @State private var showStartWarningConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -26,8 +28,17 @@ struct RecordView: View {
             }
             .padding()
             .navigationTitle("StudyLapse")
+            // docs/CAPTURE.md screen dimming: near-black while recording, the
+            // timer is the only lit element. Functional only — the token
+            // palette pass is Phase 8.
+            .background(coordinator.status == .recording ? Color.black : Color.clear)
             .fullScreenCover(item: $taggingSession) { session in
                 TaggingFlowView(session: session)
+            }
+            .confirmationDialog(startWarningMessage, isPresented: $showStartWarningConfirm,
+                                titleVisibility: .visible) {
+                Button("Start Anyway") { beginRecording() }
+                Button("Cancel", role: .cancel) { pendingStartWarnings = [] }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -64,6 +75,15 @@ struct RecordView: View {
             }
         }
 
+        if coordinator.status == .recording {
+            ForEach(coordinator.warnings, id: \.self) { warning in
+                Text(warningText(warning))
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
+        }
+
         if let errorMessage {
             Text(errorMessage)
                 .foregroundStyle(.red)
@@ -76,6 +96,24 @@ struct RecordView: View {
         return "\(count) clip\(count == 1 ? "" : "s")"
     }
 
+    private func warningText(_ warning: CaptureWarning) -> String {
+        switch warning {
+        case .batteryLow:     return "Battery low — session will end automatically at 5%."
+        case .thermalSerious: return "Phone is running hot."
+        case .diskLow:        return "Storage running low."
+        }
+    }
+
+    private var startWarningMessage: String {
+        pendingStartWarnings.map { kind -> String in
+            switch kind {
+            case .batteryLowAtStart: return "Battery is below 30% and not charging."
+            case .diskLowAtStart:    return "Free storage is below 1 GB."
+            case .batteryLowDuringRecording, .thermalSerious: return ""
+            }
+        }.joined(separator: " ")
+    }
+
     private func actionButton(_ title: String, role: ButtonRole? = nil,
                               action: @escaping () -> Void) -> some View {
         Button(title, role: role, action: action)
@@ -83,8 +121,21 @@ struct RecordView: View {
             .controlSize(.large)
     }
 
+    /// docs/CAPTURE.md: low unplugged battery or low disk at session start is
+    /// "warn, offer to continue" (D-018), not a hard block.
     private func start() {
+        let warnings = coordinator.evaluateStartWarnings()
+        if warnings.isEmpty {
+            beginRecording()
+        } else {
+            pendingStartWarnings = warnings
+            showStartWarningConfirm = true
+        }
+    }
+
+    private func beginRecording() {
         errorMessage = nil
+        pendingStartWarnings = []
         do {
             try coordinator.startNewSession()
         } catch {

@@ -10,7 +10,7 @@ import UIKit
 /// Non-fatal conditions surfaced to the recording UI. Guard logic that
 /// populates this (battery / thermal / disk) lands in Phase 7 — the type
 /// exists now so the coordinator's surface is stable.
-enum CaptureWarning: Equatable {
+enum CaptureWarning: Hashable {
     case batteryLow
     case thermalSerious
     case diskLow
@@ -40,21 +40,48 @@ final class SessionCoordinator {
 
     private let context: ModelContext
     private let makeFrameSource: () -> FrameSource
+    private let makeGuardSignalSource: () -> GuardSignalSource
 
     private var captureController: CaptureController?
     private var tickTask: Task<Void, Never>?
+    private var guardMonitor: GuardMonitor?
+    /// Guards a single `autoPause`/`autoPauseAndEnd` in flight at a time —
+    /// `GuardMonitor` can report the same threshold on more than one reading
+    /// before the resulting `pause()`/`end()` finishes.
+    private var isHandlingGuardAction = false
+    #if canImport(UIKit)
+    private var previousScreenBrightness: CGFloat?
+    #endif
 
     /// `makeFrameSource` defaults to the real camera; tests inject a
-    /// `SyntheticFrameSource`.
+    /// `SyntheticFrameSource`. `makeGuardSignalSource` defaults to the real
+    /// device signals (battery/thermal/disk); tests inject a synthetic source
+    /// to drive `CaptureGuards` at its documented thresholds (BUILD.md Phase 7
+    /// criterion 1) without touching `UIDevice`/`ProcessInfo`.
     init(context: ModelContext,
-         makeFrameSource: @escaping () -> FrameSource = { CameraFrameSource() }) {
+         makeFrameSource: @escaping () -> FrameSource = { CameraFrameSource() },
+         makeGuardSignalSource: @escaping () -> GuardSignalSource = { DeviceGuardSignalSource() }) {
         self.context = context
         self.makeFrameSource = makeFrameSource
+        self.makeGuardSignalSource = makeGuardSignalSource
     }
 
     private var dayBoundary: DayBoundary {
         let hour = UserDefaults.standard.object(forKey: "dayCutoffHour") as? Int ?? 4
         return DayBoundary(cutoffHour: hour)
+    }
+
+    // MARK: Guards (docs/CAPTURE.md guard table)
+
+    /// A one-off check the UI runs before starting a session — low unplugged
+    /// battery or low disk space are "warn, offer to continue" (D-018), not a
+    /// hard block, so this returns what to show rather than throwing.
+    func evaluateStartWarnings() -> [GuardWarningKind] {
+        let monitor = GuardMonitor(source: makeGuardSignalSource())
+        return monitor.evaluateSessionStart().compactMap { action in
+            if case .warn(let kind) = action { return kind }
+            return nil
+        }
     }
 
     // MARK: Lifecycle
@@ -83,17 +110,21 @@ final class SessionCoordinator {
 
         try beginCapture(firstClipIndex: 0)
         setIdleTimerDisabled(true)
+        setScreenDimmed(true)
         startTicking()
+        startGuardMonitoring()
         DebugLog.write("Session", "started \(newSession.id) dayKey \(newSession.dayKey)")
     }
 
     func pause() async {
         guard status == .recording else { return }
+        stopGuardMonitoring()
         await stopCapture()
         pruneUnfinalizedRows()
         status = .paused
         session?.status = .paused
         setIdleTimerDisabled(false)
+        setScreenDimmed(false)
         reconcileStudySeconds()
         try? context.save()
         DebugLog.write("Session", "paused; \(clipCount) clips, \(Int(studySeconds))s study")
@@ -109,18 +140,22 @@ final class SessionCoordinator {
         try context.save()
         try beginCapture(firstClipIndex: nextIndex)
         setIdleTimerDisabled(true)
+        setScreenDimmed(true)
         startTicking()
+        startGuardMonitoring()
         DebugLog.write("Session", "resumed at clip index \(nextIndex)")
     }
 
     func end() async {
         guard status != .ended else { return }
+        stopGuardMonitoring()
         await stopCapture()
         pruneUnfinalizedRows()
         status = .ended
         session?.status = .ended
         session?.endedAt = Date()
         setIdleTimerDisabled(false)
+        setScreenDimmed(false)
         reconcileStudySeconds()
         stopTicking()
         if let session {
@@ -354,6 +389,78 @@ final class SessionCoordinator {
         DebugLog.write("Session", "idle timer disabled = \(disabled) "
             + "(screen \(disabled ? "held on" : "may sleep"))")
         #endif
+    }
+
+    /// docs/CAPTURE.md "Screen dimming": drop to near-black while recording —
+    /// the phone is meant to be ignored, not looked at — and restore the
+    /// previous brightness on pause. The recording screen itself supplies the
+    /// only lit element (the timer); see docs/UI.md screen 2.
+    private func setScreenDimmed(_ dimmed: Bool) {
+        #if canImport(UIKit)
+        if dimmed {
+            guard previousScreenBrightness == nil else { return }
+            previousScreenBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 0.05
+            DebugLog.write("Session", "screen dimmed for recording")
+        } else {
+            guard let previous = previousScreenBrightness else { return }
+            UIScreen.main.brightness = previous
+            previousScreenBrightness = nil
+            DebugLog.write("Session", "screen brightness restored")
+        }
+        #endif
+    }
+
+    // MARK: Guard monitoring
+
+    private func startGuardMonitoring() {
+        let monitor = GuardMonitor(source: makeGuardSignalSource())
+        guardMonitor = monitor
+        monitor.start { [weak self] actions in
+            Task { @MainActor [weak self] in
+                self?.handleGuardActions(actions)
+            }
+        }
+    }
+
+    private func stopGuardMonitoring() {
+        guardMonitor?.stop()
+        guardMonitor = nil
+        warnings = []
+    }
+
+    /// Applies every action `CaptureGuards` reported for the latest reading.
+    /// Non-blocking `.warn` actions replace `warnings` wholesale (so a
+    /// resolved condition — e.g. thermal cooling back to `.fair` — clears its
+    /// banner automatically); `.autoPause`/`.autoPauseAndEnd` drive the same
+    /// `pause()`/`end()` the user's own controls use, once at a time.
+    private func handleGuardActions(_ actions: [GuardAction]) {
+        warnings = actions.compactMap { action -> CaptureWarning? in
+            guard case .warn(let kind) = action else { return nil }
+            switch kind {
+            case .batteryLowDuringRecording: return .batteryLow
+            case .thermalSerious:            return .thermalSerious
+            case .batteryLowAtStart, .diskLowAtStart: return nil
+            }
+        }
+
+        guard !isHandlingGuardAction else { return }
+        if actions.contains(.autoPauseAndEnd) {
+            isHandlingGuardAction = true
+            DebugLog.write("Session", "guard fired autoPauseAndEnd")
+            Task { @MainActor [weak self] in
+                await self?.pause()
+                await self?.end()
+                self?.isHandlingGuardAction = false
+            }
+        } else if actions.contains(.autoPause) {
+            isHandlingGuardAction = true
+            DebugLog.write("Session", "guard fired autoPause (thermal critical)")
+            Task { @MainActor [weak self] in
+                await self?.pause()
+                self?.isHandlingGuardAction = false
+            }
+        }
     }
 }
 
