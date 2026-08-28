@@ -310,6 +310,13 @@ final class SessionCoordinator {
         clipCount = session.clips.filter(\.isFinalized).count
         if status != .recording { reconcileStudySeconds() }
         DebugLog.write("Session", "persisted clip \(finalized.index): \(finalized.frameCount) frames")
+
+        // Framing continuity (docs/CAPTURE.md): keep ghost.jpg pointed at the
+        // most recently finalized clip's last frame. Fire-and-forget — never
+        // blocks or fails capture.
+        let sessionID = session.id
+        let clipURL = finalized.url
+        Task { await GhostOverlayGenerator.regenerate(for: sessionID, clipURL: clipURL) }
     }
 
     private func removeUnfinalizedRow(index: Int) {

@@ -1,6 +1,7 @@
 import AVFoundation
 import StudyLapseCore
 import SwiftUI
+import UIKit
 
 /// Phase 2 record screen: the study-time timer, clip count, and
 /// record / pause / resume / end controls wired to `SessionCoordinator`.
@@ -13,25 +14,38 @@ struct RecordView: View {
     @State private var taggingSession: Session?
     @State private var pendingStartWarnings: [GuardWarningKind] = []
     @State private var showStartWarningConfirm = false
+    @State private var ghostImage: UIImage?
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                switch authorizationStatus {
-                case .authorized:
-                    sessionControls
-                case .notDetermined:
-                    permissionPrime
-                default:
-                    permissionDenied
+            ZStack {
+                if coordinator.status == .paused, let ghostImage {
+                    Image(uiImage: ghostImage)
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.35)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
                 }
+
+                VStack(spacing: 24) {
+                    switch authorizationStatus {
+                    case .authorized:
+                        sessionControls
+                    case .notDetermined:
+                        permissionPrime
+                    default:
+                        permissionDenied
+                    }
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("StudyLapse")
             // docs/CAPTURE.md screen dimming: near-black while recording, the
             // timer is the only lit element. Functional only — the token
             // palette pass is Phase 8.
             .background(coordinator.status == .recording ? Color.black : Color.clear)
+            .task(id: pausedGhostKey) { await loadGhostImage() }
             .fullScreenCover(item: $taggingSession) { session in
                 TaggingFlowView(session: session)
             }
@@ -94,6 +108,27 @@ struct RecordView: View {
     private var clipCountLabel: String {
         let count = coordinator.clipCount
         return "\(count) clip\(count == 1 ? "" : "s")"
+    }
+
+    /// Re-runs `loadGhostImage` whenever the paused session identity changes
+    /// (a new pause, or a different session recovered on launch) — not on
+    /// every `studySeconds` tick, which `.task(id:)` would otherwise re-fire on
+    /// since `coordinator` is `@Observable`.
+    private var pausedGhostKey: String {
+        coordinator.status == .paused ? (coordinator.session?.id.uuidString ?? "") : ""
+    }
+
+    private func loadGhostImage() async {
+        guard coordinator.status == .paused, let sessionID = coordinator.session?.id else {
+            ghostImage = nil
+            return
+        }
+        let url = GhostOverlayGenerator.url(for: sessionID)
+        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
+            ghostImage = nil
+            return
+        }
+        ghostImage = image
     }
 
     private func warningText(_ warning: CaptureWarning) -> String {
