@@ -1,17 +1,15 @@
 # Status
 
-**Last updated:** 2026-08-27
-**Current phase:** 6 of 11 — Voiceover. **Complete.** All four CI jobs green
-(run on `dcead64`). All four acceptance criteria are `[device]`/`[eyes-on]`;
-the developer **accepted them on the strength of the CI tests that prove the
-logic** (2026-08-27, "good enough for now") without a device pass — the
-on-device / ears-on checks in *Needs developer verification* are still worth
-running when convenient, especially criterion 4 (no audible click). Phases 0–6
-complete.
-**Next action:** Hold. The developer explicitly asked not to start Phase 7 yet
-(2026-08-27). When they give the go-ahead, Phase 7 (Live Activity, guards,
-dimming, ghost overlay, exposure/WB locking, framing guide, remaining overlay
-styles + intro/outro cards) per BUILD.md. Nothing blocked.
+**Last updated:** 2026-08-28
+**Current phase:** 7 of 11 — Live Activity, guards, and dimming. **Code-complete
+on `main`, all four CI jobs green** on each of four commits (guards/dimming,
+ghost overlay, camera preview + framing guide, Live Activity). All five
+acceptance criteria are `[device]`/`[eyes-on]` — none checked, per the
+"never check off a `[device]`/`[eyes-on]` criterion" rule; see *Needs
+developer verification* below for what to look for. Phases 0–6 complete.
+**Next action:** Sideload the latest `main` build and work through Phase 7's
+*Needs developer verification* checklist below. Nothing blocked; Phase 8 (UI
+polish) is next once Phase 7 is signed off.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
 far) are functional-only — no design tokens, no polish. Visual work is
@@ -85,8 +83,62 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- Nothing. Phase 6 is complete (see Done). Phase 7 not started — the developer
-  asked to hold before starting it.
+- **Phase 7 — Live Activity, guards, and dimming.** Code-complete on `main`,
+  all CI green. All five criteria are `[device]`/`[eyes-on]` — see *Needs
+  developer verification* below. Four commits:
+  1. `StudyLapseCore/CaptureGuards.swift` — pure threshold logic for
+     docs/CAPTURE.md's guard table (session-start warnings, during-recording
+     banners/auto-pause/auto-pause-and-end). `CaptureGuardsTests` covers every
+     threshold incl. the exclusive boundaries and multi-action readings.
+     `StudyLapse/Capture/GuardMonitor.swift` wires it to live signals through
+     a `GuardSignalSource` seam (`DeviceGuardSignalSource` is the only thing
+     touching `UIDevice`/`ProcessInfo`); `GuardMonitorTests` drives the same
+     thresholds through `SessionCoordinator` with a synthetic source —
+     satisfies BUILD.md criterion 1's "inject synthetic values" ask.
+     `SessionCoordinator.evaluateStartWarnings()` + a confirm dialog in
+     `RecordView` for the pre-start case; live warning banners + auto
+     pause/end wiring for during-recording. Screen dimming
+     (`UIScreen.main.brightness -> 0.05`, restored on pause) added alongside
+     the existing idle-timer lock.
+  2. `StudyLapse/Features/Record/GhostOverlay.swift` —
+     `GhostOverlayGenerator.regenerate` writes `sessions/<id>/ghost.jpg` from
+     the last readable frame of a finalized clip (mirrors `ThumbnailProvider`
+     but regenerates on every finalize, not once).
+     `SessionCoordinator.persistFinalizedClip` fires it fire-and-forget.
+     `RecordView` shows the ghost frame at 35% opacity while paused.
+     `GhostOverlayTests` exercises the generator against a real
+     `CaptureController`-written clip.
+  3. `StudyLapse/Capture/CameraPreviewController.swift` +
+     `Features/Record/CameraPreviewView.swift` +
+     `Features/Record/FramingGuideView.swift` — RecordView had **no camera
+     preview in any state** (a Phase 2 comment referencing Q-005 read as
+     blanket "no preview," but Q-005 is specifically about the *recording*
+     screen). Added a live preview + rule-of-thirds/9:16-safe-area framing
+     guide for the idle and paused screens (docs/UI.md screens 1 and 3),
+     using a second, standalone `AVCaptureSession` kept deliberately isolated
+     from `CaptureController`/`CameraFrameSource` so nothing here can affect
+     the tested capture pipeline. `RecordView.beginRecording()`/`resume()`
+     call `previewController.stop()` synchronously before starting the real
+     capture session, to release the camera first.
+  4. `StudyLapseActivity/` (new target) — `StudyLapseActivityAttributes`
+     (compiled into both the app and extension targets from one file, no
+     separate framework module), `LiveActivityManager` (app-side
+     start/update/end wrapping `ActivityKit`, called from
+     `SessionCoordinator.pause()`/`resume()`/`end()`),
+     `StudyLapseActivityWidget` (lock-screen + Dynamic Island views). Resume
+     is a `Link` to a `studylapse://resume` deep link, not an `AppIntent` —
+     see Deviations. `project.yml`: new `app-extension` target embedded in
+     `StudyLapse`, `NSSupportsLiveActivities` + `CFBundleURLTypes` merged via
+     `info.properties` alongside the existing
+     `GENERATE_INFOPLIST_FILE`-synthesized keys; docs/SETUP.md's snippet
+     updated to match.
+
+  Already satisfied by earlier work, discovered while scoping this phase:
+  **exposure/white-balance locking** (`CameraFrameSource.lockExposureAfterWarmup`,
+  shipped in Phase 1) and **the `boxed`/`mono` overlay styles + intro/outro
+  cards** (`OverlayLayerBuilder`, shipped in Phase 3, ahead of that phase's
+  own stated non-goals). Both just need the `[eyes-on]` re-verification below,
+  not new code.
 
 ## Done
 
@@ -314,13 +366,53 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Hold for the developer's go-ahead on Phase 7.
-2. Phase 7 — Live Activity, guards, dimming, ghost overlay, exposure/WB
-   locking, framing guide, remaining overlay styles + intro/outro cards.
-   Depends on Phase 2 (done). Note the free-Apple-ID three-app limit — the
-   widget extension is a second bundle ID.
+1. Sideload the latest `main` build and sign off Phase 7 (see *Needs
+   developer verification* immediately below).
+2. Phase 8 — UI polish, once Phase 7 is signed off.
 
 ## Needs developer verification
+
+**Phase 7 — Live Activity, guards, and dimming — code-complete, no device
+pass yet.** All five criteria are `[device]`/`[eyes-on]`; CI proves the
+guard-threshold logic (see BUILD.md's per-criterion notes) but nothing else
+here is CI-provable — camera, screen brightness, and ActivityKit all need a
+real device. Two of the five are re-verifications of already-shipped code
+(exposure lock from Phase 1, no criterion existed for it until now) rather
+than new behavior.
+
+1. `[device]` **each guard fires at its threshold.** Hardest to trigger for
+   real (letting the battery actually reach 5%, or filling the disk to
+   <300MB, isn't practical to test deliberately) — CI proof
+   (`CaptureGuardsTests` + `GuardMonitorTests`, synthetic values) is probably
+   the practical bar here. If convenient: start a session below 30% battery
+   unplugged and confirm the "start anyway" confirmation dialog appears; a
+   session running above 10% but at/below it should show an orange banner
+   ("Battery low — session will end automatically at 5%").
+2. `[device]` **the Live Activity appears on pause and is dismissed on
+   end.** Pause a session, check the Lock Screen / Dynamic Island for a
+   "StudyLapse — Paused" card with the study time and clip count; End Session
+   should make it disappear immediately.
+3. `[eyes-on]` **tapping Resume in the Live Activity opens the app already
+   recording, in under 2 seconds.** From the lock screen or Dynamic Island,
+   tap Resume — the app should foreground already recording (not just on the
+   paused screen waiting for another tap). If it only opens to the paused
+   screen, the `studylapse://resume` URL scheme likely isn't registering —
+   check the debug log for a "resume deep link received" line.
+4. `[eyes-on]` **a 3-hour session shows no exposure strobing at clip
+   boundaries.** This re-verifies Phase 1's `lockExposureAfterWarmup`, which
+   was never checked off against a criterion before — a shorter session (say,
+   20+ minutes across 2-3 clip rollovers) checked for visible
+   brightness/color jumps at each clip boundary should be a reasonable proxy
+   if 3 hours isn't practical.
+5. `[eyes-on]` **screen brightness drops on record and restores on pause.**
+   Start recording — the screen should go near-black within about a second;
+   Pause should restore normal brightness. Also worth an eyes-on check of the
+   new idle-screen camera preview + framing guide (rule-of-thirds grid + a
+   centred rectangle) and the ghost-frame overlay (35% opacity) when
+   returning to a paused session — none of these had their own BUILD.md
+   criterion but are new user-visible behavior from this phase.
+
+**Phase 6 — Voiceover — accepted on CI, device pass optional.** The developer
 
 **Phase 6 — Voiceover — accepted on CI, device pass optional.** The developer
 signed the four criteria off on 2026-08-27 on the strength of the CI tests
@@ -404,14 +496,18 @@ Known caveats (still relevant for later phases):
 - Free-ID cert expires ~7 days after signing; re-sideload if the app stops
   launching with no code change.
 - The recording screen has no camera preview by design (docs/UI.md, Q-005) —
-  a black screen with a timer is correct, not a bug.
+  a black screen with a timer is correct, not a bug. (The idle and paused
+  screens do show a live preview as of Phase 7 — Q-005 was always specifically
+  about the recording screen.)
 - The timer "snapping to the next multiple of the capture interval" (2s by
   default) on pause/resume is expected: study time is
   `frameCount * captureInterval`, and the free-running 1 Hz counter reconciles
   to the true frame count on stop. Number is correct.
-- Screen dimming while recording is Phase 7, not wired yet.
-- `ghost.jpg` (resume overlay) generation is still deferred to Phase 7.
-  `thumbnail.jpg` is now generated lazily by `ThumbnailProvider` on first
+- Screen dimming while recording is wired as of Phase 7
+  (`SessionCoordinator.setScreenDimmed`).
+- `ghost.jpg` (resume overlay) generation is wired as of Phase 7
+  (`GhostOverlayGenerator`, regenerated on every finalized clip).
+  `thumbnail.jpg` is generated lazily by `ThumbnailProvider` on first
   library view (Phase 5), not at session end — a session viewed before its
   sources are purged keeps its thumbnail; one purged without ever being viewed
   shows the film icon.
@@ -426,13 +522,47 @@ Not blocking, but constraining while there is no Mac:
 - No debugger, no console — rely on the Phase 1 on-device debug log (D-024)
 - Free-ID certificates expire every 7 days; re-sideload when the app stops
   launching with no code change
-- Three apps per free Apple ID, so hold off on the widget extension until Phase 7
+- Three apps per free Apple ID — the widget extension (a second bundle ID)
+  now exists as of Phase 7; the sideloaded build uses two of the three slots.
+  Worth knowing before adding anything else that needs its own bundle ID.
 - **Q-001** app name and bundle identifier — does not block Phase 0 or the
   sideload path (the sideloader rewrites the bundle ID), but must be settled
   before real provisioning is set up on a Mac
 
 ## Deviations from spec
 
+- 2026-08-28, Phase 7: **the Live Activity's Resume control is a `Link` deep
+  link, not an `AppIntent`.** BUILD.md's scope line says "App Intent Resume
+  action, deep link" — read as two things to build. An `AppIntent`'s
+  `perform()` runs in the widget extension's own process; without App Groups
+  (Q-004, paid program) there is no way for it to reach the app's live
+  `SessionCoordinator`, so it can't actually *do* the resume, only open the
+  app generically. The `studylapse://resume` URL (`Link` in the Live Activity
+  view, handled by `StudyLapseApp.onOpenURL`) is the one mechanism that
+  crosses the process boundary within the free-tier constraint and matches
+  docs/UI.md's own wording ("a Resume button backed by an App Intent that
+  deep-links to Record" — the deep link is doing the real work either way).
+- 2026-08-28, Phase 7: **no camera-flip control on the new idle preview.**
+  docs/UI.md screen 1 mentions "a camera flip control," but front/rear camera
+  is one of the four settings in docs/UI.md's own (still unbuilt) Settings
+  screen — out of scope for a phase whose bullet list only asks for the
+  preview + framing guide. The preview and the real capture session both
+  default to the back camera (`CameraFrameSource`'s existing default).
+- 2026-08-28, Phase 7: **RecordView had no camera preview in any state before
+  this phase**, despite docs/UI.md screens 1 and 3 specifying one since the
+  spec was written. The Phase 2 comment "No preview while recording
+  (docs/UI.md, Q-005)" was evidently read as blanket "no preview" rather than
+  Q-005's actual, narrower scope (whether the *recording* screen should have
+  one — it still doesn't). Not a spec change: docs/UI.md was already correct,
+  the implementation had drifted from it. Added a standalone
+  `CameraPreviewController`/`AVCaptureSession` for the idle/paused screens
+  only, isolated from the real capture pipeline.
+- 2026-08-28, Phase 7: **exposure/white-balance locking and the
+  `boxed`/`mono` overlay styles + intro/outro cards were already implemented**
+  (Phase 1 and Phase 3 respectively), ahead of those phases' own stated
+  non-goals/scope. Phase 7's BUILD.md scope line for these needed no new
+  code — just the `[eyes-on]` re-verification, since neither had a BUILD.md
+  criterion to check off before now.
 - 2026-08-27, Phase 6: **`ExportProfile.fingerprintAtRevision: String?` added.**
   docs/DATA_MODEL.md declared `revision: Int` but never said *when* it bumps.
   Gap, not a contradiction (standing rule 2): added the optional
@@ -1005,3 +1135,19 @@ Newest last. One line per session: date, what moved, how it ended.
   with the CI test behind each. Four Deviations logged (`fingerprintAtRevision`,
   optional `stopTake` return, `Prepared.audioMix`, delete-only stale banner →
   Q-008). Next: developer sideloads and runs the four checks; then Phase 7.
+- 2026-08-28 — Phase 7 built in one session, four commits each chased to
+  green on CI: (1) guards (`CaptureGuards` + `GuardMonitor`) + screen dimming;
+  (2) ghost overlay (`GhostOverlayGenerator`); (3) idle-screen camera preview
+  (`CameraPreviewController`/`CameraPreviewView`) + `FramingGuideView` — found
+  and fixed a real gap along the way (`RecordView` had no preview in *any*
+  state, not just while recording as Q-005 actually says); (4) Live Activity
+  (`StudyLapseActivity` widget extension target, `ActivityAttributes`,
+  `LiveActivityManager`, `studylapse://resume` deep link) — the riskiest
+  commit (a new Xcode target + `project.yml`/Info.plist changes never
+  exercised before in this repo) went green on the first push. Four
+  Deviations logged (Resume-as-deep-link not `AppIntent`, no camera-flip
+  control, the pre-existing no-preview gap, and exposure-lock/overlay-styles
+  already having shipped in earlier phases). **Phase 7 stays In progress** —
+  all five criteria are `[device]`/`[eyes-on]`, written up under *Needs
+  developer verification* with exact repro steps. Next: developer sideloads
+  and works through that checklist; then Phase 8 (UI polish).

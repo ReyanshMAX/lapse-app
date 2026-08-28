@@ -464,7 +464,9 @@ Everything that makes the day-spanning session model actually usable.
 - Ghost overlay on resume
 - Exposure and white-balance locking across clips
 - Framing guide with the 9:16 safe area
-- Remaining overlay styles and intro/outro cards
+- ~~Remaining overlay styles and intro/outro cards~~ — already shipped in
+  Phase 3 (`OverlayLayerBuilder`'s `boxed`/`mono` styles and intro/outro
+  cards), ahead of that phase's own stated non-goals. Nothing to do here.
 
 **Non-goals for this phase**
 - No home screen widget (needs App Groups — see Q-004)
@@ -472,11 +474,34 @@ Everything that makes the day-spanning session model actually usable.
 **Acceptance criteria**
 - [ ] `[device]` each guard fires at its documented threshold in a test that
       injects synthetic battery/thermal/disk values
+      — CI proves the logic: `CaptureGuardsTests` (every threshold in
+      docs/CAPTURE.md's guard table, including the exclusive boundaries) and
+      `GuardMonitorTests` (the same thresholds driven through
+      `SessionCoordinator` via a synthetic `GuardSignalSource`, asserting the
+      resulting `pause()`/`end()`/`warnings` behavior). What CI can't prove:
+      that `DeviceGuardSignalSource` reads real `UIDevice`/`ProcessInfo`
+      values correctly.
 - [ ] `[device]` the Live Activity appears on pause and is dismissed on end
+      — code-complete: `SessionCoordinator.pause()` calls
+      `LiveActivityManager.start`, `resume()`/`end()` call `.end()`. Not
+      CI-provable (`ActivityKit` needs a real device/simulator session with
+      Live Activities enabled).
 - [ ] `[eyes-on]` tapping Resume in the Live Activity opens the app already
       recording, in under 2 seconds
+      — code-complete via a `studylapse://resume` deep link
+      (`StudyLapseApp.onOpenURL` calls `coordinator.resume()`), not an
+      `AppIntent` — see STATUS.md Deviations for why. Device-only.
 - [ ] `[eyes-on]` a 3-hour session shows no exposure strobing at clip boundaries
+      — `CameraFrameSource.lockExposureAfterWarmup` (exposure + white balance
+      locked ~1s after each session/resume) predates this phase (Phase 1);
+      re-verify explicitly since it was never checked off.
 - [ ] `[eyes-on]` screen brightness drops on record and restores on pause
+      — `SessionCoordinator.setScreenDimmed` (`UIScreen.main.brightness` ->
+      0.05 on record/resume, restored on pause/end). Device-only.
+
+All five are `[device]`/`[eyes-on]`; every one is code-complete with the CI
+proof noted above where logic exists to prove. None checked — no developer
+device pass yet.
 
 **Depends on:** Phase 2
 
