@@ -13,11 +13,27 @@ targets:
     platform: iOS
     sources:
       - path: StudyLapse
+      # StudyLapseActivityAttributes.swift crosses the app/widget-extension
+      # process boundary (docs/ARCHITECTURE.md: no separate framework in v1),
+      # so it's compiled into both targets from this one file.
+      - path: StudyLapseActivity/StudyLapseActivityAttributes.swift
     dependencies:
       - package: StudyLapseCore
+      - target: StudyLapseActivity
+        embed: true
     scheme:
       testTargets:
         - StudyLapseTests
+    info:
+      properties:
+        # NSSupportsLiveActivities and CFBundleURLTypes are booleans/arrays,
+        # which a build-setting-only Info.plist can't express — merged in
+        # alongside the GENERATE_INFOPLIST_FILE-synthesized keys below.
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - studylapse
+            CFBundleURLName: com.placeholder.studylapse
     settings:
       base:
         PRODUCT_NAME: StudyLapse
@@ -43,3 +59,26 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  # Live Activity widget extension (docs/UI.md "Live Activity"; BUILD.md
+  # Phase 7). A second bundle ID — counts against the free Apple ID's
+  # three-app limit (docs/SETUP.md), which is why this stayed out of scope
+  # until Phase 7.
+  StudyLapseActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: StudyLapseActivity
+    dependencies:
+      - package: StudyLapseCore
+    info:
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_NAME: StudyLapseActivity
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1"

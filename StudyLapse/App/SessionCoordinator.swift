@@ -128,6 +128,10 @@ final class SessionCoordinator {
         reconcileStudySeconds()
         try? context.save()
         DebugLog.write("Session", "paused; \(clipCount) clips, \(Int(studySeconds))s study")
+        if let session {
+            LiveActivityManager.start(dayKey: session.dayKey, studySeconds: studySeconds,
+                                      clipCount: clipCount)
+        }
         evaluateAutoClose()
     }
 
@@ -143,6 +147,7 @@ final class SessionCoordinator {
         setScreenDimmed(true)
         startTicking()
         startGuardMonitoring()
+        LiveActivityManager.end()
         DebugLog.write("Session", "resumed at clip index \(nextIndex)")
     }
 
@@ -158,6 +163,7 @@ final class SessionCoordinator {
         setScreenDimmed(false)
         reconcileStudySeconds()
         stopTicking()
+        LiveActivityManager.end()
         if let session {
             TagRangeSeeding.ensureSeeded(for: session, in: context)
             DebugLog.write("Session", "seeded \(session.tagRanges.count) tag range(s)")
