@@ -2,11 +2,13 @@
 
 **Last updated:** 2026-08-28
 **Current phase:** 7 of 11 — Live Activity, guards, and dimming. **Code-complete
-on `main`, all four CI jobs green** on each of four commits (guards/dimming,
-ghost overlay, camera preview + framing guide, Live Activity). All five
-acceptance criteria are `[device]`/`[eyes-on]` — none checked, per the
-"never check off a `[device]`/`[eyes-on]` criterion" rule; see *Needs
-developer verification* below for what to look for. Phases 0–6 complete.
+on `main`, all four CI jobs green** (run 33140747991) across five feature
+commits (guards/dimming, ghost overlay, camera preview + framing guide, Live
+Activity, docs) plus two small CI-config fixes the new widget-extension
+target needed — see Deviations. All five acceptance criteria are
+`[device]`/`[eyes-on]` — none checked, per the "never check off a
+`[device]`/`[eyes-on]` criterion" rule; see *Needs developer verification*
+below for what to look for. Phases 0–6 complete.
 **Next action:** Sideload the latest `main` build and work through Phase 7's
 *Needs developer verification* checklist below. Nothing blocked; Phase 8 (UI
 polish) is next once Phase 7 is signed off.
@@ -391,7 +393,10 @@ than new behavior.
 2. `[device]` **the Live Activity appears on pause and is dismissed on
    end.** Pause a session, check the Lock Screen / Dynamic Island for a
    "StudyLapse — Paused" card with the study time and clip count; End Session
-   should make it disappear immediately.
+   should make it disappear immediately. If the app itself fails to
+   *install* via the sideloader, check the bundle ID first (see Deviations)
+   — the extension's ID must stay prefixed by the app's after the
+   sideloader rewrites it, not just get its own independent one.
 3. `[eyes-on]` **tapping Resume in the Live Activity opens the app already
    recording, in under 2 seconds.** From the lock screen or Dynamic Island,
    tap Resume — the app should foreground already recording (not just on the
@@ -531,6 +536,28 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-08-28, Phase 7 (CI config, not a spec deviation): **`StudyLapse`
+  switched from `GENERATE_INFOPLIST_FILE` to a checked-in `Info.plist`.**
+  The new `StudyLapseActivity` widget-extension target needed
+  `NSSupportsLiveActivities` (bool) and `CFBundleURLTypes` (array) in the
+  app's Info.plist, which a build-setting-only Info.plist can't express.
+  First attempt (`info.properties` with no `info.path`) failed project
+  generation outright — that combination isn't valid XcodeGen schema, it
+  turns out `info.path` is required. Fixed by giving both `StudyLapse` and
+  `StudyLapseActivity` a real checked-in `Info.plist` + `INFOPLIST_FILE`
+  instead (each target's `sources` excludes its own `Info.plist` so the
+  directory glob doesn't also treat it as a bundle resource). Second issue,
+  same target: XcodeGen's default per-target bundle ID
+  (`bundleIdPrefix.TargetName`) made the extension a *sibling* of the app
+  (`com.placeholder.StudyLapseActivity`); an app extension's ID must be the
+  parent's with a suffix, or the simulator (and a real install) refuses it
+  with "Mismatched bundle IDs" — fixed with an explicit
+  `PRODUCT_BUNDLE_IDENTIFIER: com.placeholder.StudyLapse.StudyLapseActivity`.
+  Both fixed within the session (runs 33140367700, 33140747991); nothing
+  outstanding. **Worth double-checking when sideloading**: docs/SETUP.md
+  says the sideloader rewrites the bundle ID (Q-001) — confirm it preserves
+  this same parent-prefix relationship for the extension, or the sideloaded
+  build could fail to install even though CI is green.
 - 2026-08-28, Phase 7: **the Live Activity's Resume control is a `Link` deep
   link, not an `AppIntent`.** BUILD.md's scope line says "App Intent Resume
   action, deep link" — read as two things to build. An `AppIntent`'s
@@ -1135,19 +1162,24 @@ Newest last. One line per session: date, what moved, how it ended.
   with the CI test behind each. Four Deviations logged (`fingerprintAtRevision`,
   optional `stopTake` return, `Prepared.audioMix`, delete-only stale banner →
   Q-008). Next: developer sideloads and runs the four checks; then Phase 7.
-- 2026-08-28 — Phase 7 built in one session, four commits each chased to
-  green on CI: (1) guards (`CaptureGuards` + `GuardMonitor`) + screen dimming;
-  (2) ghost overlay (`GhostOverlayGenerator`); (3) idle-screen camera preview
-  (`CameraPreviewController`/`CameraPreviewView`) + `FramingGuideView` — found
-  and fixed a real gap along the way (`RecordView` had no preview in *any*
-  state, not just while recording as Q-005 actually says); (4) Live Activity
-  (`StudyLapseActivity` widget extension target, `ActivityAttributes`,
-  `LiveActivityManager`, `studylapse://resume` deep link) — the riskiest
-  commit (a new Xcode target + `project.yml`/Info.plist changes never
-  exercised before in this repo) went green on the first push. Four
-  Deviations logged (Resume-as-deep-link not `AppIntent`, no camera-flip
-  control, the pre-existing no-preview gap, and exposure-lock/overlay-styles
-  already having shipped in earlier phases). **Phase 7 stays In progress** —
-  all five criteria are `[device]`/`[eyes-on]`, written up under *Needs
-  developer verification* with exact repro steps. Next: developer sideloads
-  and works through that checklist; then Phase 8 (UI polish).
+- 2026-08-28 — Phase 7 built in one session, four feature commits each
+  chased to green on CI: (1) guards (`CaptureGuards` + `GuardMonitor`) +
+  screen dimming; (2) ghost overlay (`GhostOverlayGenerator`); (3)
+  idle-screen camera preview (`CameraPreviewController`/`CameraPreviewView`)
+  + `FramingGuideView` — found and fixed a real gap along the way
+  (`RecordView` had no preview in *any* state, not just while recording as
+  Q-005 actually says); (4) Live Activity (`StudyLapseActivity` widget
+  extension target, `ActivityAttributes`, `LiveActivityManager`,
+  `studylapse://resume` deep link) — the riskiest commit (a new Xcode target
+  + `project.yml`/Info.plist changes never exercised before in this repo)
+  needed two follow-up CI-config fixes (XcodeGen's `info.properties` needs
+  an explicit `path`; an app extension's bundle ID must be prefixed by its
+  parent's, not a sibling) before all four jobs went green, run 33140747991.
+  Four spec Deviations logged (Resume-as-deep-link not `AppIntent`, no
+  camera-flip control, the pre-existing no-preview gap, and
+  exposure-lock/overlay-styles already having shipped in earlier phases)
+  plus the two CI-config fixes written up separately with a sideload caveat
+  for the bundle ID. **Phase 7 stays In progress** — all five criteria are
+  `[device]`/`[eyes-on]`, written up under *Needs developer verification*
+  with exact repro steps. Next: developer sideloads and works through that
+  checklist; then Phase 8 (UI polish).
