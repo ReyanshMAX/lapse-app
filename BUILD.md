@@ -562,21 +562,49 @@ pass over screens that already work.
 views, it does not introduce new types or protocols.
 
 **Acceptance criteria**
-- [ ] `[ci]` the app still builds and every existing simulator test still
+- [x] `[ci]` the app still builds and every existing simulator test still
       passes with no logic changes — a diff review confirms no file outside
       `Features/`, `Shared/`, and docs/UI.md changed
+      — diff for the Phase 8 commit touches only `StudyLapse/Shared/DesignTokens.swift`
+      (new), the eight `Features/` screen files, and `docs/UI.md` (+
+      `OPEN_QUESTIONS.md`, a process doc, not code); CI green on the run for
+      that commit (see STATUS.md for the run number). No `StudyLapseCore`,
+      `Model/`, `Capture/`, `Export/`, `Storage/`, or `Voiceover/` file
+      touched — verified by `git show --stat`.
 - [ ] `[eyes-on]` every screen (Record ×3 states, Tagging ×2 modes, Export,
       Voiceover, Library, Stats) uses the docs/UI.md token palette with no
       leftover system-default colors or fonts
+      — code-complete: `DesignTokens.swift` implements the token palette;
+      every screen restyled, no `.secondary`/`.red`/`.orange`/`.accentColor`/
+      `Color.gray` left in `Features/` (verified by grep). Awaiting developer
+      eyes-on (STATUS.md).
 - [ ] `[eyes-on]` the `TagSliderView` per-segment label reads correctly at
       both a short (single-segment) and a long (9-hour, many-segment)
       session
+      — code-complete: removed the redundant `.offset` that double-shifted
+      the label past what `.overlay(alignment: .center)` already positioned
+      correctly (STATUS.md *In progress*). Awaiting developer eyes-on.
 - [ ] `[eyes-on]` Library and Stats each show a designed empty state on a
       fresh install with zero sessions, not a blank screen
+      — code-complete: `EmptyStateView` (Shared/DesignTokens.swift) wired
+      into both screens; docs/UI.md gained an "Empty states" section.
+      Awaiting developer eyes-on.
 - [ ] `[eyes-on]` VoiceOver reads the Record-screen timer label and every
       icon-only control without a missing or generic ("button") label
+      — code-complete: throttled accessibility label + `.updatesFrequently`
+      on the Record timer; explicit labels on the tag-remove button and
+      heatmap cells. Awaiting developer eyes-on (VoiceOver can't be verified
+      without a device).
 - [ ] `[eyes-on]` the developer's read on the whole app, screen to screen, is
       "looks finished," not "looks like a prototype"
+      — awaiting developer eyes-on; see STATUS.md *Needs developer
+      verification* for the walkthrough.
+
+Everything in Scope is done except the timer-overlay penultimate/final-value
+smoothing, which conflicts with this phase's own criterion 1 (the fix lives
+in `StudyLapse/Export/`) — left as a known limitation, logged as
+OPEN_QUESTIONS.md Q-009 rather than silently either skipped or done by
+breaking criterion 1.
 
 **Depends on:** Phases 5, 6, 7 (every screen it restyles must exist first)
 

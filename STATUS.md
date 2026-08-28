@@ -1,20 +1,21 @@
 # Status
 
 **Last updated:** 2026-08-28
-**Current phase:** 7 of 11 — Live Activity, guards, and dimming. **Complete.**
-Developer tested on device 2026-08-28 and confirmed all five acceptance
-criteria good; BUILD.md boxes checked, moved to Done below. Two follow-up
-changes requested at sign-off and shipped the same day: the ghost overlay
-was removed, and the camera preview now shows continuously — including
-while recording, not just idle/paused — resolving the former Q-005 (now
-DECISIONS.md D-028). Phases 0–7 complete.
-**Next action:** Phase 8 — UI polish (docs/UI.md design tokens across all
-screens; see BUILD.md). Nothing blocked.
+**Current phase:** 8 of 11 — UI polish. **Code-complete, awaiting developer
+eyes-on.** All six screens plus Stats restyled to docs/UI.md's token palette;
+`TagSliderView`'s known label-offset bug fixed; Library/Stats empty states
+added. Every Phase 8 acceptance criterion is `[eyes-on]` except one `[ci]`
+one — see *Needs developer verification* below for what to look at on the
+sideloaded build. Phases 0–7 complete.
+**Next action:** sideload the latest `main` build and walk through every
+screen (Record ×3 states, Tagging ×2 modes, Export, Voiceover, Library,
+Stats — plus the two empty states on a fresh install / after deleting all
+sessions) per *Needs developer verification*. Nothing else blocked.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
-far) are functional-only — no design tokens, no polish. Visual work is
-deliberately deferred; docs/UI.md §"Design tokens" + Phase 8 own it. Don't
-treat the current look as a baseline to preserve.
+far) were functional-only — no design tokens, no polish. Deliberately
+deferred to Phase 8 (docs/UI.md §"Design tokens"); addressed 2026-08-28, see
+below.
 
 **Environment:** No Mac access for approximately one week. Builds run on GitHub
 Actions macOS runners; the `ipa` job produces an unsigned .ipa that is signed
@@ -83,7 +84,57 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-Nothing. Phase 7 is complete (see Done). Phase 8 (UI polish) not started.
+- **Phase 8 — UI polish** (2026-08-28) — code-complete, all CI jobs expected
+  green (verify latest run before sign-off), awaiting the developer's
+  eyes-on pass. See *Needs developer verification* below. Not moved to Done
+  until the developer confirms the screens actually read as "looks
+  finished," per this phase's own last acceptance criterion.
+  - `StudyLapse/Shared/DesignTokens.swift` (new) — docs/UI.md's dark
+    "cold ink" palette (background/surface/surface2/text/accent/recording +
+    two new semantic tokens, `slError`/`slWarning`, not in docs/UI.md since
+    it only specifies the six named colors) as `Color` statics, the
+    4/8/12/16/24/32 spacing scale, 14pt corner radius, plus three reusable
+    views: `EmptyStateView`, `TagChip`/`TagChipRow`.
+  - Every screen restyled to pull from those tokens instead of system
+    defaults (`.secondary`, `.red`, `.orange`, `.accentColor`, `Color.gray`,
+    the Stats screen's own ad hoc `[Color]` array) — Record (all three
+    states), Tagging (segment list + slider), `TagFieldSheet`, Export,
+    Voiceover, Library (grid + session detail), Stats.
+  - Tag chips/segments/split-bar bands now all read a tag's actual stored
+    `Tag.colorHex` (`TagCatalog.palette`, via a new `tagColor(_:in:)`
+    helper) instead of three separate hand-picked palettes, so the same tag
+    reads as the same color in Tagging, Library, and Stats.
+  - `TagSliderView`'s per-segment label bug (Phase 4 Done's known rough
+    edge) fixed — the label was already correctly centered by
+    `.overlay(alignment: .center)` on the segment's own (offset) frame; an
+    extra hand-rolled `.offset(x: x0 + (x1-x0)/2 - width/2)` on top of that
+    double-shifted it for any segment not in the middle of the track. Fix
+    just removes the redundant offset.
+  - `EmptyStateView` (Library "No sessions yet", Stats "No data yet") —
+    docs/UI.md gained a new "Empty states" section describing both.
+    Library's `ContentUnavailableView` and Stats's implicit blank list (zero
+    sessions still rendered an empty `List` with just a "By tag" section
+    reading "No tagged sessions yet") are replaced with the same designed
+    layout.
+  - VoiceOver: Record screen's study timer carries a throttled
+    (≥30s-cadence) accessibility label plus `.updatesFrequently`, separate
+    from the 1 Hz visual text, per docs/UI.md Notes. Accessibility labels
+    added to the icon-only remove-tag button (`TagFieldSheet`) and the
+    heatmap's color-only day cells; the tag-color dot next to each Stats
+    split-bar row is marked `accessibilityHidden` since the row's text
+    already carries the tag name.
+  - **Not done, logged as OPEN_QUESTIONS.md Q-009**: the burned-in export
+    timer's "penultimate value fills the tail, final total shows for under
+    a video frame" known limitation, named in BUILD.md's Phase 8 Scope
+    bullet list. The fix lives in `StudyLapse/Export/OverlayLayerBuilder.swift`
+    (a `CAKeyframeAnimation` opacity-window split), which is outside this
+    phase's own acceptance criterion 1 ("no file outside `Features/`,
+    `Shared/`, and docs/UI.md changed") and Non-goals ("no changes to ...
+    export composition"). Left for a small dedicated follow-up rather than
+    breaking that criterion.
+  - Nothing outside `Features/`, `Shared/`, `docs/UI.md`, and
+    `OPEN_QUESTIONS.md` changed — no model/logic files touched, matching
+    acceptance criterion 1.
 
 ## Done
 
@@ -380,11 +431,50 @@ Nothing. Phase 7 is complete (see Done). Phase 8 (UI polish) not started.
 
 ## Next up
 
-1. Sideload the latest `main` build and sign off Phase 7 (see *Needs
+1. Sideload the latest `main` build and sign off Phase 8 (see *Needs
    developer verification* immediately below).
-2. Phase 8 — UI polish, once Phase 7 is signed off.
+2. Phase 9 — Ship, once Phase 8 is signed off.
 
 ## Needs developer verification
+
+**Phase 8 — UI polish — code-complete, awaiting the developer's eyes-on
+pass.** All acceptance criteria but one are `[eyes-on]`; nothing here has a
+CI proof beyond "it still builds and the existing tests still pass" (the one
+`[ci]` criterion). Walk through every screen on the sideloaded build:
+
+1. `[ci]` **the app still builds and every existing simulator test still
+   passes with no logic changes.** Verify the latest CI run on `main` is
+   green, and that the diff for this phase touched only `Features/`,
+   `Shared/`, and `docs/UI.md` (plus `OPEN_QUESTIONS.md`/`STATUS.md`/
+   `BUILD.md`, which aren't code) — `git show --stat` on the Phase 8 commit.
+2. `[eyes-on]` **every screen uses the docs/UI.md token palette with no
+   leftover system-default colors or fonts.** Record (idle / recording /
+   paused), Tagging (segment list + slider), Export, Voiceover, Library,
+   Stats. Look for anything that still reads as plain iOS system blue/gray
+   rather than the navy-black/icy-blue "cold ink" palette.
+3. `[eyes-on]` **the `TagSliderView` per-segment label reads correctly** at
+   both a short (single-segment) and a long (9-hour, many-segment) session —
+   the label should sit centered in its own segment, not drift toward the
+   middle of the whole track.
+4. `[eyes-on]` **Library and Stats each show a designed empty state** on a
+   fresh install (or after deleting every session) — an icon in a tinted
+   circle, a title, and a message, not a blank screen.
+5. `[eyes-on]` **VoiceOver reads the Record-screen timer label and every
+   icon-only control** without a missing or generic ("button") label — the
+   remove-tag button in the tag-edit sheet, the Stats heatmap cells (should
+   read the date and duration), the Library toolbar's Stats link.
+6. `[eyes-on]` **the whole app, screen to screen, reads "looks finished,"
+   not "looks like a prototype."** The most subjective one — flag anything
+   that still looks rough even if it technically uses the token palette.
+
+**Known gap, not a bug to look for:** the burned-in export timer's final
+value (session total) is still only visible for a sliver of the last video
+frame — BUILD.md's Phase 8 Scope bullet asked for this, but the fix lives
+outside `Features/`/`Shared/`/`docs/UI.md` and was left for a small
+follow-up change instead (OPEN_QUESTIONS.md Q-009). Not expected to look
+fixed on this build.
+
+---
 
 **Phase 6 — Voiceover — accepted on CI, device pass optional.** The developer
 signed the four criteria off on 2026-08-27 on the strength of the CI tests
@@ -448,18 +538,20 @@ Phase 5's five criteria were signed off 2026-08-27 on the sideloaded `main`
 build; Phase 4's six and Phase 3's six on the same day.
 
 Known limitations (not bugs, revisit later):
-- Every screen so far is functional-only — no design tokens, no polish.
-  Deliberate; docs/UI.md §"Design tokens" + Phase 8. Not a baseline to preserve.
+- ~~Every screen so far is functional-only — no design tokens, no polish.~~
+  Addressed in Phase 8 (2026-08-28) — see *In progress* above.
 - The final timer value (session total) is visible for the last frame only;
-  the penultimate value fills the rest of the tail. Smooth later if it reads
-  wrong.
+  the penultimate value fills the rest of the tail. Still open — Phase 8's
+  attempt to fix this ran into its own file-scope acceptance criterion
+  (OPEN_QUESTIONS.md Q-009); left for a small dedicated follow-up.
 - The export screen is reached via End Session → Tagging → Export (Phase 4) and
   as a re-export from the library session detail sheet (Phase 5).
   `ClipsDebugView` and its export link are gone.
 - `intro`/`outro` card toggles exist in the UI and render, but the card text
-  is minimal (date / total / tags) — polish is Phase 8.
-- `TagSliderView` per-segment tag label positioning is rough (see Phase 4 Done);
-  Phase 8.
+  is minimal (date / total / tags) — content is unchanged by Phase 8 (a
+  visual/token pass only), just now rendered in the token type/colors.
+- ~~`TagSliderView` per-segment tag label positioning is rough~~ — fixed in
+  Phase 8 (2026-08-28), see *In progress* above.
 - Stats: multi-tag ranges split their time evenly among their tags, and a
   streak stays "current" through yesterday's `dayKey` (Q-007 — both interim,
   documented in `Stats.swift`).
