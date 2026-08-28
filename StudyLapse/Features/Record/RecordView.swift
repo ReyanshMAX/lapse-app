@@ -3,10 +3,11 @@ import StudyLapseCore
 import SwiftUI
 import UIKit
 
-/// Phase 2 record screen: the study-time timer, clip count, and
-/// record / pause / resume / end controls wired to `SessionCoordinator`.
-/// No preview while recording (docs/UI.md, Q-005); no overlay, tagging, or
-/// export yet (BUILD.md Phase 2 non-goals).
+/// Record screen: the study-time timer, clip count, and record / pause /
+/// resume / end controls wired to `SessionCoordinator`, with a live camera
+/// preview + framing guide shown in every state, including while recording
+/// (D-028 — resolves the former Q-005; screen dimming still applies while
+/// recording, so the preview reads dim rather than fully lit).
 struct RecordView: View {
     @Environment(SessionCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
@@ -15,21 +16,24 @@ struct RecordView: View {
     @State private var taggingSession: Session?
     @State private var pendingStartWarnings: [GuardWarningKind] = []
     @State private var showStartWarningConfirm = false
-    @State private var ghostImage: UIImage?
     @State private var previewController = CameraPreviewController()
 
-    /// The idle-screen preview (docs/UI.md screen 1) and paused "dimmed
-    /// preview" (screen 3) both show it; recording never does (screen 2,
-    /// Q-005 — unchanged by this).
     private var showsPreview: Bool {
-        authorizationStatus == .authorized && coordinator.status != .recording
+        authorizationStatus == .authorized
+    }
+
+    /// While recording, bind to the real capture session's own preview layer
+    /// (only one `AVCaptureSession` can hold the camera at a time); otherwise
+    /// the standalone idle-preview session.
+    private var boundPreviewSession: AVCaptureSession {
+        coordinator.activePreviewSession ?? previewController.session
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 if showsPreview {
-                    CameraPreviewView(session: previewController.session)
+                    CameraPreviewView(session: boundPreviewSession)
                         .ignoresSafeArea()
                     FramingGuideView()
                         .ignoresSafeArea()
@@ -37,15 +41,6 @@ struct RecordView: View {
                         // "Dimmed preview" (docs/UI.md screen 3).
                         Color.black.opacity(0.25).ignoresSafeArea()
                     }
-                }
-
-                if coordinator.status == .paused, let ghostImage {
-                    Image(uiImage: ghostImage)
-                        .resizable()
-                        .scaledToFill()
-                        .opacity(0.35)
-                        .ignoresSafeArea()
-                        .accessibilityHidden(true)
                 }
 
                 VStack(spacing: 24) {
@@ -61,11 +56,6 @@ struct RecordView: View {
                 .padding()
             }
             .navigationTitle("StudyLapse")
-            // docs/CAPTURE.md screen dimming: near-black while recording, the
-            // timer is the only lit element. Functional only — the token
-            // palette pass is Phase 8.
-            .background(coordinator.status == .recording ? Color.black : Color.clear)
-            .task(id: pausedGhostKey) { await loadGhostImage() }
             .onAppear { updatePreviewSession() }
             .onDisappear { previewController.stop() }
             .onChange(of: coordinator.status) { _, _ in updatePreviewSession() }
@@ -91,13 +81,14 @@ struct RecordView: View {
         }
     }
 
-    /// Starts or stops the idle-preview session to match the current screen
-    /// state — off while recording (the real capture session needs the
-    /// camera) or backgrounded, on otherwise. Runs on every relevant state
-    /// change; `CameraPreviewController` itself no-ops a redundant
-    /// start/stop, so calling this liberally is cheap.
+    /// Starts or stops the *standalone idle-preview* session — never while
+    /// recording, since the real capture session supplies the preview then
+    /// (`boundPreviewSession`), and a second `AVCaptureSession` would just
+    /// fail to acquire the camera. Also off when backgrounded.
+    /// `CameraPreviewController` itself no-ops a redundant start/stop, so
+    /// calling this liberally on every relevant state change is cheap.
     private func updatePreviewSession() {
-        if showsPreview, scenePhase == .active {
+        if showsPreview, scenePhase == .active, coordinator.status != .recording {
             previewController.start()
         } else {
             previewController.stop()
@@ -145,27 +136,6 @@ struct RecordView: View {
     private var clipCountLabel: String {
         let count = coordinator.clipCount
         return "\(count) clip\(count == 1 ? "" : "s")"
-    }
-
-    /// Re-runs `loadGhostImage` whenever the paused session identity changes
-    /// (a new pause, or a different session recovered on launch) — not on
-    /// every `studySeconds` tick, which `.task(id:)` would otherwise re-fire on
-    /// since `coordinator` is `@Observable`.
-    private var pausedGhostKey: String {
-        coordinator.status == .paused ? (coordinator.session?.id.uuidString ?? "") : ""
-    }
-
-    private func loadGhostImage() async {
-        guard coordinator.status == .paused, let sessionID = coordinator.session?.id else {
-            ghostImage = nil
-            return
-        }
-        let url = GhostOverlayGenerator.url(for: sessionID)
-        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
-            ghostImage = nil
-            return
-        }
-        ghostImage = image
     }
 
     private func warningText(_ warning: CaptureWarning) -> String {

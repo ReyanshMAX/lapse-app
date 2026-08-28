@@ -175,4 +175,29 @@ final class SessionCoordinatorTests: XCTestCase {
         await coordinator.end()
         cleanupClipFiles()
     }
+
+    /// D-028: the live preview binds to the real capture session while
+    /// recording. `activePreviewSession` must fall back to nil (letting
+    /// `RecordView` use its own idle-preview session instead) whenever
+    /// there's no real `CameraFrameSource` behind capture — true for every
+    /// test here, which all inject `SyntheticFrameSource` — and whenever the
+    /// coordinator isn't actually recording.
+    func testActivePreviewSessionIsNilWithoutARealCameraSource() async throws {
+        let source = newSource()
+        let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
+
+        XCTAssertNil(coordinator.activePreviewSession, "no session before recording starts")
+
+        try coordinator.startNewSession()
+        XCTAssertNil(coordinator.activePreviewSession,
+                     "SyntheticFrameSource isn't a CameraFrameSource, so no preview session even while recording")
+
+        source.emit(seconds: 30)
+        await coordinator.pause()
+        await waitUntil({ coordinator.status == .paused })
+        XCTAssertNil(coordinator.activePreviewSession, "no session once recording stops")
+
+        await coordinator.end()
+        cleanupClipFiles()
+    }
 }

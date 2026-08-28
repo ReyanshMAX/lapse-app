@@ -21,7 +21,10 @@ final class CameraFrameSource: NSObject, FrameSource {
     var onFrame: ((CVPixelBuffer, CMTime) -> Void)?
 
     private let position: AVCaptureDevice.Position
-    private let session = AVCaptureSession()
+    /// Not private: `SessionCoordinator.activePreviewSession` binds a
+    /// `CameraPreviewView` to this same session while recording (D-028) — a
+    /// second `AVCaptureSession` can't also hold the device.
+    let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let sessionQueue = DispatchQueue(label: "studylapse.capture.session")
     private let bufferQueue = DispatchQueue(label: "studylapse.capture.buffer")

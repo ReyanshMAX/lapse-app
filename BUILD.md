@@ -461,9 +461,17 @@ Everything that makes the day-spanning session model actually usable.
 - Widget extension, `ActivityAttributes`, App Intent Resume action, deep link
 - Battery, thermal, and disk guards per docs/CAPTURE.md
 - Screen dimming and idle-timer handling
-- Ghost overlay on resume
+- ~~Ghost overlay on resume~~ — built, then removed same day at the
+  developer's request (2026-08-28): superseded by the live preview now
+  showing continuously (see below), which makes a static last-frame overlay
+  redundant. docs/CAPTURE.md's "Framing continuity" section rewritten.
 - Exposure and white-balance locking across clips
 - Framing guide with the 9:16 safe area
+- **Camera preview extended to show continuously, including while
+  recording** (developer request, 2026-08-28) — resolves Q-005 (now in
+  DECISIONS.md as D-028); docs/UI.md screen 2 updated to match. Not
+  originally scoped for this phase, but lands here since it reuses this
+  phase's preview/framing-guide work.
 - ~~Remaining overlay styles and intro/outro cards~~ — already shipped in
   Phase 3 (`OverlayLayerBuilder`'s `boxed`/`mono` styles and intro/outro
   cards), ahead of that phase's own stated non-goals. Nothing to do here.
@@ -472,36 +480,37 @@ Everything that makes the day-spanning session model actually usable.
 - No home screen widget (needs App Groups — see Q-004)
 
 **Acceptance criteria**
-- [ ] `[device]` each guard fires at its documented threshold in a test that
+- [x] `[device]` each guard fires at its documented threshold in a test that
       injects synthetic battery/thermal/disk values
       — CI proves the logic: `CaptureGuardsTests` (every threshold in
       docs/CAPTURE.md's guard table, including the exclusive boundaries) and
       `GuardMonitorTests` (the same thresholds driven through
       `SessionCoordinator` via a synthetic `GuardSignalSource`, asserting the
-      resulting `pause()`/`end()`/`warnings` behavior). What CI can't prove:
-      that `DeviceGuardSignalSource` reads real `UIDevice`/`ProcessInfo`
-      values correctly.
-- [ ] `[device]` the Live Activity appears on pause and is dismissed on end
-      — code-complete: `SessionCoordinator.pause()` calls
-      `LiveActivityManager.start`, `resume()`/`end()` call `.end()`. Not
-      CI-provable (`ActivityKit` needs a real device/simulator session with
-      Live Activities enabled).
-- [ ] `[eyes-on]` tapping Resume in the Live Activity opens the app already
+      resulting `pause()`/`end()`/`warnings` behavior). Developer confirmed
+      on device 2026-08-28.
+- [x] `[device]` the Live Activity appears on pause and is dismissed on end
+      — `SessionCoordinator.pause()` calls `LiveActivityManager.start`,
+      `resume()`/`end()` call `.end()`. Developer confirmed on device
+      2026-08-28.
+- [x] `[eyes-on]` tapping Resume in the Live Activity opens the app already
       recording, in under 2 seconds
-      — code-complete via a `studylapse://resume` deep link
-      (`StudyLapseApp.onOpenURL` calls `coordinator.resume()`), not an
-      `AppIntent` — see STATUS.md Deviations for why. Device-only.
-- [ ] `[eyes-on]` a 3-hour session shows no exposure strobing at clip boundaries
+      — via a `studylapse://resume` deep link (`StudyLapseApp.onOpenURL`
+      calls `coordinator.resume()`), not an `AppIntent` — see STATUS.md
+      Deviations for why. Developer confirmed on device 2026-08-28.
+- [x] `[eyes-on]` a 3-hour session shows no exposure strobing at clip boundaries
       — `CameraFrameSource.lockExposureAfterWarmup` (exposure + white balance
-      locked ~1s after each session/resume) predates this phase (Phase 1);
-      re-verify explicitly since it was never checked off.
-- [ ] `[eyes-on]` screen brightness drops on record and restores on pause
+      locked ~1s after each session/resume), shipped in Phase 1, re-verified
+      against this criterion for the first time. Developer confirmed on
+      device 2026-08-28.
+- [x] `[eyes-on]` screen brightness drops on record and restores on pause
       — `SessionCoordinator.setScreenDimmed` (`UIScreen.main.brightness` ->
-      0.05 on record/resume, restored on pause/end). Device-only.
+      0.05 on record/resume, restored on pause/end). Developer confirmed on
+      device 2026-08-28.
 
-All five are `[device]`/`[eyes-on]`; every one is code-complete with the CI
-proof noted above where logic exists to prove. None checked — no developer
-device pass yet.
+All five confirmed on device 2026-08-28. Two follow-up changes requested at
+sign-off, done the same day: the ghost overlay was removed, and the camera
+preview now shows continuously including while recording (see Scope above,
+STATUS.md Deviations, and D-028).
 
 **Depends on:** Phase 2
 

@@ -408,7 +408,7 @@ Batch into the limited exclusive-access windows:
 
 Claude Code runs on the Mac over SSH and owns the build/error/fix cycle. It
 cannot see the phone. Visual verification — framing guide alignment, overlay
-legibility at speed, ghost-overlay registration, exported video quality — is the
+legibility at speed, live preview quality, exported video quality — is the
 developer's job with the device in hand. Acceptance criteria in BUILD.md are
 written to distinguish machine-checkable from eyes-on criteria.
 

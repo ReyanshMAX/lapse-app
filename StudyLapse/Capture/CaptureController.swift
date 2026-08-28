@@ -48,7 +48,10 @@ final class CaptureController: @unchecked Sendable {
     static let maxSegmentFrames: Int = 1000
     private static let gatingTolerance = 0.02
 
-    private let source: FrameSource
+    /// Not private: `SessionCoordinator` reads this to bind a live preview
+    /// layer to the same `AVCaptureSession` capture is using, when it's a
+    /// real camera (D-028) — everything else about it stays internal.
+    let source: FrameSource
     private let clock: Clock
     private let queue = DispatchQueue(label: "studylapse.capture.controller")
 

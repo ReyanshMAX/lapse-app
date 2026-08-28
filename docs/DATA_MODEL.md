@@ -248,8 +248,7 @@ StudyLapse/
         <take-uuid>.m4a
       exports/
         <export-uuid>.mov
-      thumbnail.jpg          generated on session end, first frame of clip 000
-      ghost.jpg              last frame of the most recent finalized clip
+      thumbnail.jpg          generated lazily on first library view, first frame of clip 000
 ```
 
 The root directory must be marked `isExcludedFromBackup = true`. Only relative

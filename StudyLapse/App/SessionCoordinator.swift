@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 import StudyLapseCore
@@ -224,6 +225,22 @@ final class SessionCoordinator {
         }
     }
 
+    // MARK: Live preview (docs/UI.md screens 1–3, D-028)
+
+    /// The `AVCaptureSession` actually driving capture while recording, so
+    /// `RecordView` can bind a preview layer to the *same* session instead of
+    /// running a second, conflicting one (only one `AVCaptureSession` can own
+    /// the physical camera at a time). `nil` outside `.recording`, or when the
+    /// active `FrameSource` isn't a real camera (`SyntheticFrameSource` in
+    /// tests) — `RecordView` falls back to its own idle-only preview session
+    /// in both cases.
+    #if canImport(UIKit)
+    var activePreviewSession: AVCaptureSession? {
+        guard status == .recording else { return nil }
+        return (captureController?.source as? CameraFrameSource)?.session
+    }
+    #endif
+
     // MARK: Capture wiring
 
     private func beginCapture(firstClipIndex: Int) throws {
@@ -316,13 +333,6 @@ final class SessionCoordinator {
         clipCount = session.clips.filter(\.isFinalized).count
         if status != .recording { reconcileStudySeconds() }
         DebugLog.write("Session", "persisted clip \(finalized.index): \(finalized.frameCount) frames")
-
-        // Framing continuity (docs/CAPTURE.md): keep ghost.jpg pointed at the
-        // most recently finalized clip's last frame. Fire-and-forget — never
-        // blocks or fails capture.
-        let sessionID = session.id
-        let clipURL = finalized.url
-        Task { await GhostOverlayGenerator.regenerate(for: sessionID, clipURL: clipURL) }
     }
 
     private func removeUnfinalizedRow(index: Int) {
@@ -406,8 +416,10 @@ final class SessionCoordinator {
 
     /// docs/CAPTURE.md "Screen dimming": drop to near-black while recording —
     /// the phone is meant to be ignored, not looked at — and restore the
-    /// previous brightness on pause. The recording screen itself supplies the
-    /// only lit element (the timer); see docs/UI.md screen 2.
+    /// previous brightness on pause. This dims everything on screen,
+    /// including the live camera preview (D-028), which is what keeps the
+    /// recording screen reading as near-black rather than the preview being
+    /// hidden outright; see docs/UI.md screen 2.
     private func setScreenDimmed(_ dimmed: Bool) {
         #if canImport(UIKit)
         if dimmed {

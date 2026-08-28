@@ -36,30 +36,31 @@ button, and a camera flip control. Below the button: today's study total if a
 session already exists for this `dayKey`.
 
 If a paused session exists for the current `dayKey`, this screen instead shows
-Resume as the primary action with the accumulated study time above it, and the
-ghost overlay (docs/CAPTURE.md) at 35% opacity.
+Resume as the primary action with the accumulated study time above it.
 
 First entry shows a permission prime explaining why the camera is needed, then
 the system prompt.
 
 ### 2. Record — recording
 
-Near-black screen (D-018, docs/CAPTURE.md screen dimming). The only lit elements:
+The live camera preview and framing guide stay visible while recording (D-028)
+— the screen reads near-black because `UIScreen.main.brightness` is dropped to
+0.05 (D-018, docs/CAPTURE.md screen dimming), not because the preview is
+hidden. The only clearly lit elements against that dimmed feed:
 
 - Study timer, SF Mono, 48pt, centred, updating at 1 Hz
 - A small pulsing red dot
 - Pause button, large hit target, bottom centre
 - Warning banners when a guard fires (battery, thermal, disk)
 
-No camera preview while recording — showing it costs power and invites the user
-to look at the phone, which is the behavior the app exists to prevent. Tapping
-anywhere other than Pause does nothing.
+Tapping anywhere other than Pause does nothing.
 
 ### 3. Record — paused
 
-Returns to a dimmed preview with Resume and End Session. Shows accumulated study
-time, clip count, and estimated storage used. The Live Activity is live in this
-state and its Resume action deep-links here and immediately resumes.
+Returns to the (undimmed, but still scrim-darkened for legibility) live preview
+with Resume and End Session. Shows accumulated study time, clip count, and
+estimated storage used. The Live Activity is live in this state and its Resume
+action deep-links here and immediately resumes.
 
 Ending prompts for confirmation only if study time is under 5 minutes.
 

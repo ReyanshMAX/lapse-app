@@ -126,9 +126,7 @@ misjudge its pacing. Feed through an `AVAssetWriterInputPixelBufferAdaptor`.
 - A `Clip` row is inserted with `isFinalized == false` when a chunk *opens*
   (`onClipOpened`), so a crash before `finishWriting` still leaves a row.
 - On successful `finishWriting`, flip that row: `isFinalized = true`, persist
-  `frameCount`, recompute `studyOffsetStart` for the session. (`ghost.jpg` from
-  the clip's last frame is deferred to Phase 7 with the ghost overlay — see
-  STATUS.md Deviations.)
+  `frameCount`, recompute `studyOffsetStart` for the session.
 - Worst-case loss on power failure is therefore one chunk (~2 minutes).
 
 ### Launch recovery
@@ -183,16 +181,21 @@ Observe `ProcessInfo.thermalStateDidChangeNotification` and
 
 ## Framing continuity
 
-On resume, display `ghost.jpg` — the last frame of the previous finalized clip —
-as a low-opacity overlay on the camera preview so the user can re-align the
-phone. Dismissible, and hidden automatically once recording starts.
+The camera preview (docs/UI.md screens 1–3) is shown continuously — idle,
+recording, and paused — so the user can see and correct framing at any point,
+not just at resume (D-028). This replaced an earlier last-frame "ghost
+overlay" design, built and then removed the same day: with the live feed
+always visible, a static echo of the previous frame added nothing.
 
 ## Screen dimming
 
 While recording, set `UIScreen.main.brightness` to 0.05 and store the previous
 value for restore on pause or termination. The screen cannot be turned off
-entirely while the camera runs. The recording screen itself must be near-black
-with the timer as the only lit element (see docs/UI.md).
+entirely while the camera runs. `UIScreen.main.brightness` dims everything
+rendered, including the live camera preview (D-028) — the recording screen
+reads as near-black with the timer as the only clearly lit element, not
+because the preview is hidden but because the whole display is dimmed (see
+docs/UI.md).
 
 ## Storage estimate
 

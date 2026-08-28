@@ -43,16 +43,6 @@ DECISIONS.md and delete the entry here.
 - **Depends on it:** App Groups, home screen widget, TestFlight, submission, and
   the lead time on identity verification — start this early, not at submission
 
-## Q-005: Whether the recording screen should show any preview at all
-
-- **Blocking:** no — Phase 2 ships without a preview and docs/UI.md specifies
-  none while recording
-- **Options:** no preview (current spec, saves power and discourages looking at
-  the phone); a tiny always-on thumbnail so the user can confirm framing without
-  ending the session; a tap-to-peek preview that times out
-- **Depends on it:** whether framing errors are discoverable mid-session. Right
-  now a badly framed nine-hour session is only discovered at export
-
 ## Q-007: Stats — multi-tag attribution and streak currency
 
 - **Blocking:** no — Phase 5 ships with the interim choices below, documented in

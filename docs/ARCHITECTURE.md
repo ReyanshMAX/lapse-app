@@ -116,7 +116,7 @@ accumulate counters and hand off at clip boundaries.
 2. Frames arrive on `bufferQueue`, are gated, and appended to the writer. Frame
    counters live in the capture layer.
 3. Every ~120s a chunk finalizes → hop to main actor, persist `Clip`, recompute
-   `studyOffsetStart`, write `ghost.jpg`.
+   `studyOffsetStart`.
 4. Backgrounding or a pause tap → finalize clip, stop session, status `.paused`,
    start the Live Activity.
 5. Resume → new `Clip` with `index = last + 1`, `studyOffsetStart` = running total.
