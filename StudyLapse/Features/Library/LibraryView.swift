@@ -89,11 +89,21 @@ private struct SessionTile: View {
             Text(Formatters.studyTime(totalStudySeconds))
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(Color.slTextSecondary)
-            if !tagNames.isEmpty {
-                TagChipRow(names: tagNames, colorFor: { tagColor($0, in: context) })
+            // Fixed-height slot regardless of whether this session has tags —
+            // otherwise a tagged tile is taller than an untagged one, and
+            // since each tile's background sizes to its own content (not the
+            // grid row), adjacent tiles in the same row end up with
+            // mismatched card heights: the grid reads "offset" because the
+            // shorter card's background stops short of its neighbor's.
+            Group {
+                if !tagNames.isEmpty {
+                    TagChipRow(names: tagNames, colorFor: { tagColor($0, in: context) })
+                }
             }
+            .frame(height: 24, alignment: .leading)
         }
         .padding(DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface))
         .task(id: session.id) {
             thumbnail = await ThumbnailProvider.thumbnail(for: session)
