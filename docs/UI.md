@@ -26,6 +26,12 @@ Recording indicator `#FF3B30` — unchanged.
 Type: SF Pro Text for UI, SF Mono for all timer and duration displays. Corner
 radius 14. Spacing scale 4/8/12/16/24/32.
 
+A tag's chip/band color is always its stored `Tag.colorHex`
+(`TagCatalog.palette`, docs/DATA_MODEL.md) — the same tag reads as the same
+color in the Tagging segment list, the Tagging slider, the Library grid, and
+the Stats per-tag split bar, rather than each screen picking its own ad hoc
+palette.
+
 ## Screens
 
 ### 1. Record — idle
@@ -126,6 +132,20 @@ removes the database rows and the session directory together.
 
 Total hours, current streak, per-tag time split as a horizontal bar, and a
 calendar heatmap by `dayKey`. Untagged time appears explicitly as its own band.
+
+## Empty states
+
+Both Library and Stats can be reached with zero finished sessions (a fresh
+install, or every session still in progress). Neither is a blank screen:
+
+- **Library, no sessions.** Centered: a film-stack glyph in a surface-2 circle,
+  "No sessions yet", and "Finished study sessions show up here."
+- **Stats, no data.** Same layout: a bar-chart glyph, "No data yet", and
+  "Finish a study session to see your totals, streaks, and heatmap here."
+
+Both use the same layout (icon in a tinted circle, title, secondary-text
+message, centered) built from the token palette, not the system default
+`ContentUnavailableView` styling.
 
 ## Settings
 

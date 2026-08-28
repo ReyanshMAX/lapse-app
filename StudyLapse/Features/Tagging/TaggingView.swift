@@ -51,9 +51,9 @@ struct TaggingView: View {
 
             switch mode {
             case .list:
-                SegmentListView(editor: editor, onEditTags: { editing = EditingTarget(index: $0) })
+                SegmentListView(editor: editor, context: context, onEditTags: { editing = EditingTarget(index: $0) })
             case .slider:
-                TagSliderView(editor: editor, onEditTags: { editing = EditingTarget(index: $0) })
+                TagSliderView(editor: editor, context: context, onEditTags: { editing = EditingTarget(index: $0) })
             }
 
             Divider()
@@ -68,6 +68,7 @@ struct TaggingView: View {
             .controlSize(.large)
             .padding()
         }
+        .screenBackground()
     }
 }
 
@@ -75,6 +76,7 @@ struct TaggingView: View {
 
 private struct SegmentListView: View {
     @Bindable var editor: TagEditor
+    let context: ModelContext
     let onEditTags: (Int) -> Void
 
     var body: some View {
@@ -83,22 +85,25 @@ private struct SegmentListView: View {
                 Button {
                     onEditTags(index)
                 } label: {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         HStack {
                             Text("\(Formatters.minutesSeconds(range.start)) – \(Formatters.minutesSeconds(range.end))")
                                 .font(.system(.subheadline, design: .monospaced))
+                                .foregroundStyle(Color.slTextPrimary)
                             Spacer()
                             Text(Formatters.studyTime(range.end - range.start))
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.slTextSecondary)
                         }
                         if range.tags.isEmpty {
-                            Text("Untagged").font(.callout).foregroundStyle(.secondary)
+                            Text("Untagged").font(.callout).foregroundStyle(Color.slTextSecondary)
                         } else {
-                            TagChips(names: range.tags)
+                            TagChipRow(names: range.tags, colorFor: { tagColor($0, in: context) })
                         }
                     }
+                    .padding(.vertical, DesignTokens.Spacing.xs)
                 }
+                .listRowBackground(Color.slSurface)
                 .swipeActions(edge: .trailing) {
                     if index < editor.ranges.count - 1 {
                         Button("Merge →") { editor.merge(at: index) }
@@ -107,21 +112,18 @@ private struct SegmentListView: View {
             }
         }
         .listStyle(.plain)
+        .tokenizedListStyle()
     }
 }
 
-private struct TagChips: View {
-    let names: [String]
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(names, id: \.self) { name in
-                    Text(name)
-                        .font(.caption)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.22)))
-                }
-            }
-        }
+/// Looks up the persisted color for a tag name (`Tag.colorHex`, assigned from
+/// `TagCatalog.palette`) so the same tag reads as the same color everywhere —
+/// segment list chips, slider segments, and the Library grid. Falls back to
+/// the plain accent for a name with no `Tag` row yet (mid-edit, not yet saved).
+@MainActor
+func tagColor(_ name: String, in context: ModelContext) -> Color {
+    guard let tag = TagCatalog.existingTag(named: TagCatalog.normalize(name), in: context) else {
+        return .slAccent
     }
+    return Color(hex: tag.colorHex)
 }

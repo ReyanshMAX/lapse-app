@@ -18,6 +18,8 @@ struct ExportView: View {
                 ExportControls(session: session, profile: profile, coordinator: coordinator)
             } else {
                 ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .screenBackground()
             }
         }
         .navigationTitle("Export")
@@ -112,13 +114,14 @@ private struct ExportControls: View {
                     Text("Clamped to the minimum speed for this capture interval — "
                          + "the video can't be slower than one captured frame per output frame.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.slTextSecondary)
                 }
                 LabeledContent("Finished clips", value: "\(finalizedClipCount)")
             }
 
             renderSection
         }
+        .tokenizedListStyle()
         // `revision` bumps on any settings change so voiceover takes recorded
         // against an older revision are flagged stale (docs/DATA_MODEL.md).
         // `reconcileRevision` is idempotent: the first call (on appear) only
@@ -148,12 +151,12 @@ private struct ExportControls: View {
                 if session.sourcesPurgedAt != nil {
                     Text("This session's source clips were purged — it can't be re-exported.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.slTextSecondary)
                 }
             }
 
             if let error = coordinator.lastError {
-                Text(error).foregroundStyle(.red)
+                Text(error).foregroundStyle(Color.slError)
             }
 
             if let url = coordinator.lastExportURL, !coordinator.isExporting {
@@ -194,7 +197,7 @@ private struct ExportControls: View {
         .disabled(saveState == .saving || saveState == .saved)
 
         if case .failed(let message) = saveState {
-            Text(message).foregroundStyle(.red).font(.footnote)
+            Text(message).foregroundStyle(Color.slError).font(.footnote)
         }
     }
 }

@@ -7,8 +7,9 @@ import SwiftUI
 /// session detail sheet. Stats hangs off the toolbar (docs/UI.md §8).
 struct LibraryView: View {
     @Query(sort: \Session.startedAt, order: .reverse) private var sessions: [Session]
+    @Environment(\.modelContext) private var context
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: DesignTokens.Spacing.md)]
 
     private var finishedSessions: [Session] {
         sessions.filter { $0.status == .ended }
@@ -17,18 +18,18 @@ struct LibraryView: View {
     var body: some View {
         Group {
             if finishedSessions.isEmpty {
-                ContentUnavailableView(
-                    "No sessions yet",
+                EmptyStateView(
                     systemImage: "film.stack",
-                    description: Text("Finished study sessions show up here."))
+                    title: "No sessions yet",
+                    message: "Finished study sessions show up here.")
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
+                    LazyVGrid(columns: columns, spacing: DesignTokens.Spacing.md) {
                         ForEach(finishedSessions) { session in
                             NavigationLink {
                                 SessionDetailView(session: session)
                             } label: {
-                                SessionTile(session: session)
+                                SessionTile(session: session, context: context)
                             }
                             .buttonStyle(.plain)
                         }
@@ -38,6 +39,7 @@ struct LibraryView: View {
             }
         }
         .navigationTitle("Library")
+        .screenBackground()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink {
@@ -52,6 +54,7 @@ struct LibraryView: View {
 
 private struct SessionTile: View {
     let session: Session
+    let context: ModelContext
     @State private var thumbnail: UIImage?
 
     private var totalStudySeconds: Double {
@@ -63,9 +66,9 @@ private struct SessionTile: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14).fill(.quaternary)
+                RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface2)
                 if let thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
@@ -73,25 +76,25 @@ private struct SessionTile: View {
                 } else {
                     Image(systemName: "film")
                         .font(.title)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.slTextSecondary)
                 }
             }
             .frame(height: 150)
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius))
 
             Text(session.startedAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.slTextPrimary)
             Text(Formatters.studyTime(totalStudySeconds))
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.slTextSecondary)
             if !tagNames.isEmpty {
-                Text(tagNames.joined(separator: " · "))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                TagChipRow(names: tagNames, colorFor: { tagColor($0, in: context) })
             }
         }
+        .padding(DesignTokens.Spacing.sm)
+        .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface))
         .task(id: session.id) {
             thumbnail = await ThumbnailProvider.thumbnail(for: session)
         }

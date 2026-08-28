@@ -43,6 +43,7 @@ struct VoiceoverView: View {
         }
         .navigationTitle("Voiceover")
         .navigationBarTitleDisplayMode(.inline)
+        .screenBackground()
         .task { await setup() }
         .onDisappear { stopIfRecording(); player.pause() }
         .onReceive(ticker) { _ in
@@ -69,12 +70,12 @@ struct VoiceoverView: View {
 
                 Text("\(Formatters.minutesSeconds(playhead)) / \(Formatters.minutesSeconds(duration))")
                     .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.slTextSecondary)
 
                 recordControl(coordinator: coordinator)
 
                 if let errorMessage {
-                    Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                    Text(errorMessage).font(.footnote).foregroundStyle(Color.slError)
                         .multilineTextAlignment(.center)
                 }
 
@@ -88,17 +89,18 @@ struct VoiceoverView: View {
     private func staleBanner(coordinator: VoiceoverCoordinator, profile: ExportProfile) -> some View {
         let stale = coordinator.staleTakes(for: profile)
         if !stale.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                 Text("\(stale.count) take\(stale.count == 1 ? "" : "s") no longer line up with the current export settings and will be skipped on re-export.")
                     .font(.footnote)
+                    .foregroundStyle(Color.slTextPrimary)
                 Button("Delete misaligned takes", role: .destructive) {
                     coordinator.deleteStaleTakes(for: profile)
                 }
                 .font(.footnote)
             }
-            .padding(12)
+            .padding(DesignTokens.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.yellow.opacity(0.18)))
+            .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slWarning.opacity(0.22)))
         }
     }
 
@@ -107,14 +109,14 @@ struct VoiceoverView: View {
         GeometryReader { geo in
             let width = geo.size.width
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.15))
+                RoundedRectangle(cornerRadius: 6).fill(Color.slSurface2)
                 ForEach(coordinator.takes) { take in
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(take.isMuted ? Color.secondary.opacity(0.4) : Color.accentColor.opacity(0.7))
+                        .fill(take.isMuted ? Color.slTextSecondary.opacity(0.4) : Color.slAccent.opacity(0.8))
                         .frame(width: max(fraction(take.durationSeconds) * width, 3))
                         .offset(x: fraction(take.outputStartSeconds) * width)
                 }
-                Rectangle().fill(Color.red).frame(width: 2)
+                Rectangle().fill(Color.slRecording).frame(width: 2)
                     .offset(x: fraction(playhead) * width)
             }
         }
@@ -148,10 +150,10 @@ struct VoiceoverView: View {
 
             if insideTake {
                 Text("Playhead is inside an existing take — move it to record here.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(Color.slTextSecondary)
             } else if micStatus == .denied {
                 Text("Microphone access is off. Enable it in Settings.")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(Color.slTextSecondary)
             }
         }
     }
@@ -159,13 +161,14 @@ struct VoiceoverView: View {
     @ViewBuilder
     private func takeList(coordinator: VoiceoverCoordinator) -> some View {
         if coordinator.takes.isEmpty {
-            Text("No takes yet.").font(.footnote).foregroundStyle(.secondary)
+            Text("No takes yet.").font(.footnote).foregroundStyle(Color.slTextSecondary)
         } else {
             VStack(spacing: 0) {
                 ForEach(coordinator.takes) { take in
                     HStack {
                         Text("\(Formatters.minutesSeconds(take.outputStartSeconds)) · \(String(format: "%.1fs", take.durationSeconds))")
                             .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(Color.slTextPrimary)
                         Spacer()
                         Button(take.isMuted ? "Unmute" : "Mute") {
                             coordinator.setMuted(!take.isMuted, for: take)

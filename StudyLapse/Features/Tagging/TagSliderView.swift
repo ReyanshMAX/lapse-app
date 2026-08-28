@@ -1,4 +1,5 @@
 import StudyLapseCore
+import SwiftData
 import SwiftUI
 
 /// Slider / refine mode (docs/UI.md §4): a horizontal track spanning total
@@ -8,6 +9,7 @@ import SwiftUI
 /// (criterion 4). Tap a segment to tag it; Split halves the selected segment.
 struct TagSliderView: View {
     @Bindable var editor: TagEditor
+    let context: ModelContext
     let onEditTags: (Int) -> Void
 
     @State private var selected: Int = 0
@@ -35,6 +37,7 @@ struct TagSliderView: View {
             Spacer()
         }
         .padding(.top, 8)
+        .screenBackground()
     }
 
     private func x(for seconds: Double, width: CGFloat) -> CGFloat {
@@ -50,17 +53,26 @@ struct TagSliderView: View {
         ForEach(Array(editor.ranges.enumerated()), id: \.offset) { index, range in
             let x0 = x(for: range.start, width: width)
             let x1 = x(for: range.end, width: width)
+            let fill = range.tags.first.map { tagColor($0, in: context) } ?? .slTextSecondary
             Rectangle()
-                .fill(index == selected ? Color.accentColor.opacity(0.55) : Color.accentColor.opacity(0.22))
-                .overlay(Rectangle().stroke(Color.primary.opacity(0.15)))
+                .fill(fill.opacity(index == selected ? 0.6 : 0.3))
+                .overlay(Rectangle().stroke(Color.slTextPrimary.opacity(index == selected ? 0.5 : 0.15)))
                 .frame(width: max(x1 - x0, 1), height: trackHeight)
                 .offset(x: x0)
+                // Segment label: `.overlay(alignment: .center)` on this
+                // (already-offset) rectangle already centers within its own
+                // [x0, x1] frame — no extra offset math needed. The previous
+                // version added `x0 + (x1-x0)/2 - width/2` on top of that,
+                // which double-shifted the label away from segment center for
+                // any segment not already centered in the middle of the whole
+                // track (STATUS.md known rough edge).
                 .overlay(alignment: .center) {
-                    if !range.tags.isEmpty, x1 - x0 > 40 {
-                        Text(range.tags.first!)
-                            .font(.caption2)
+                    if x1 - x0 > 40 {
+                        Text(range.tags.isEmpty ? "—" : range.tags.joined(separator: ", "))
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(Color.slTextPrimary)
                             .lineLimit(1)
-                            .offset(x: x0 + (x1 - x0) / 2 - width / 2)
+                            .padding(.horizontal, 4)
                     }
                 }
                 .onTapGesture {
@@ -75,7 +87,7 @@ struct TagSliderView: View {
         ForEach(Array(1..<max(editor.ranges.count, 1)), id: \.self) { boundary in
             let seconds = editor.ranges[boundary].start
             Capsule()
-                .fill(Color.primary.opacity(0.85))
+                .fill(Color.slTextPrimary.opacity(0.85))
                 .frame(width: handleWidth, height: trackHeight + 12)
                 .offset(x: x(for: seconds, width: width) - handleWidth / 2, y: -6)
                 .gesture(
@@ -116,7 +128,7 @@ struct TagSliderView: View {
                 let r = editor.ranges[selected]
                 Text("\(Formatters.minutesSeconds(r.start)) – \(Formatters.minutesSeconds(r.end))")
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.slTextSecondary)
             }
         }
         .padding(.horizontal)

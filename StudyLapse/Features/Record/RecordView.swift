@@ -17,6 +17,8 @@ struct RecordView: View {
     @State private var pendingStartWarnings: [GuardWarningKind] = []
     @State private var showStartWarningConfirm = false
     @State private var previewController = CameraPreviewController()
+    @State private var accessibleStudyTime: String = ""
+    @State private var lastAnnouncedSeconds: Double = -1000
 
     private var showsPreview: Bool {
         authorizationStatus == .authorized
@@ -56,6 +58,7 @@ struct RecordView: View {
                 .padding()
             }
             .navigationTitle("StudyLapse")
+            .screenBackground()
             .onAppear { updatePreviewSession() }
             .onDisappear { previewController.stop() }
             .onChange(of: coordinator.status) { _, _ in updatePreviewSession() }
@@ -97,14 +100,24 @@ struct RecordView: View {
 
     @ViewBuilder
     private var sessionControls: some View {
+        // Visual text updates at 1 Hz (docs/UI.md screen 2); the accessibility
+        // label is throttled to a coarser cadence so VoiceOver doesn't
+        // re-announce every second (docs/UI.md Notes), and carries
+        // `.updatesFrequently` so a focused VoiceOver user can still poll the
+        // live value on demand.
         Text(Formatters.studyTime(coordinator.studySeconds))
-            .font(.system(size: 60, weight: .semibold, design: .monospaced))
+            .font(.system(size: 48, weight: .semibold, design: .monospaced))
             .monospacedDigit()
+            .foregroundStyle(Color.slTextPrimary)
+            .accessibilityLabel("Study time \(accessibleStudyTime)")
+            .accessibilityAddTraits(.updatesFrequently)
+            .onAppear { announceStudyTime(coordinator.studySeconds, force: true) }
+            .onChange(of: coordinator.studySeconds) { _, new in announceStudyTime(new) }
 
         Text(clipCountLabel)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.slTextSecondary)
 
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             switch coordinator.status {
             case .ended:
                 actionButton("Start Recording") { start() }
@@ -118,19 +131,32 @@ struct RecordView: View {
         }
 
         if coordinator.status == .recording {
-            ForEach(coordinator.warnings, id: \.self) { warning in
-                Text(warningText(warning))
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
+            VStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(coordinator.warnings, id: \.self) { warning in
+                    Text(warningText(warning))
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Color.slWarning)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius)
+                            .fill(Color.black.opacity(0.55)))
+                }
             }
         }
 
         if let errorMessage {
             Text(errorMessage)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.slError)
                 .multilineTextAlignment(.center)
         }
+    }
+
+    private func announceStudyTime(_ seconds: Double, force: Bool = false) {
+        guard force || abs(seconds - lastAnnouncedSeconds) >= 30 else { return }
+        lastAnnouncedSeconds = seconds
+        accessibleStudyTime = Formatters.studyTime(seconds)
     }
 
     private var clipCountLabel: String {
@@ -214,8 +240,9 @@ struct RecordView: View {
 
     @ViewBuilder
     private var permissionPrime: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.lg) {
             Text("StudyLapse needs camera access to record your study timelapse. Video stays on this device and is never uploaded.")
+                .foregroundStyle(Color.slTextPrimary)
                 .multilineTextAlignment(.center)
             Button("Enable Camera") {
                 Task {
@@ -226,12 +253,14 @@ struct RecordView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
         }
     }
 
     @ViewBuilder
     private var permissionDenied: some View {
         Text("Camera access is required. Enable it in Settings to continue.")
+            .foregroundStyle(Color.slTextPrimary)
             .multilineTextAlignment(.center)
     }
 }

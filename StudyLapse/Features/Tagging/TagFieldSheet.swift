@@ -46,7 +46,7 @@ struct TagFieldSheet: View {
             Form {
                 Section("Tags on this segment") {
                     if chosen.isEmpty {
-                        Text("Untagged").foregroundStyle(.secondary)
+                        Text("Untagged").foregroundStyle(Color.slTextSecondary)
                     }
                     ForEach(chosen, id: \.self) { name in
                         HStack {
@@ -58,6 +58,7 @@ struct TagFieldSheet: View {
                                 Image(systemName: "minus.circle.fill")
                             }
                             .buttonStyle(.borderless)
+                            .accessibilityLabel("Remove \(name)")
                         }
                     }
                 }
@@ -78,7 +79,7 @@ struct TagFieldSheet: View {
                             HStack {
                                 Text(tag.displayName)
                                 Spacer()
-                                Text("\(tag.useCount)").foregroundStyle(.secondary).font(.caption)
+                                Text("\(tag.useCount)").foregroundStyle(Color.slTextSecondary).font(.caption)
                             }
                         }
                     }
@@ -86,6 +87,7 @@ struct TagFieldSheet: View {
             }
             .navigationTitle("Tags")
             .navigationBarTitleDisplayMode(.inline)
+            .tokenizedListStyle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

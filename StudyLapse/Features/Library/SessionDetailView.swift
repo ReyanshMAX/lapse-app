@@ -48,14 +48,14 @@ struct SessionDetailView: View {
                         Spacer()
                         Text(range.tagNames.isEmpty ? "untagged" : range.tagNames.joined(separator: " · "))
                             .font(.caption)
-                            .foregroundStyle(range.tagNames.isEmpty ? .secondary : .primary)
+                            .foregroundStyle(range.tagNames.isEmpty ? Color.slTextSecondary : Color.slTextPrimary)
                     }
                 }
             }
 
             Section("Clips") {
                 if finalizedClips.isEmpty {
-                    Text("No finished clips").foregroundStyle(.secondary)
+                    Text("No finished clips").foregroundStyle(Color.slTextSecondary)
                 }
                 ForEach(finalizedClips) { clip in
                     clipRow(clip)
@@ -64,7 +64,7 @@ struct SessionDetailView: View {
 
             Section("Exports") {
                 if exports.isEmpty {
-                    Text("No exports yet").foregroundStyle(.secondary)
+                    Text("No exports yet").foregroundStyle(Color.slTextSecondary)
                 }
                 ForEach(exports) { export in
                     exportRow(export)
@@ -79,7 +79,7 @@ struct SessionDetailView: View {
                     .disabled(finalizedClips.isEmpty)
                 } else {
                     Label("Sources purged — re-export unavailable", systemImage: "xmark.bin")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.slTextSecondary)
                 }
             }
 
@@ -94,6 +94,7 @@ struct SessionDetailView: View {
         }
         .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
+        .tokenizedListStyle()
         .confirmationDialog("Delete this session? Its clips, tags, and exports are removed for good.",
                             isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete session", role: .destructive) {
@@ -120,7 +121,7 @@ struct SessionDetailView: View {
                  + (clip.wasRecovered ? " · recovered" : "")
                  + (exists ? "" : " · file purged"))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.slTextSecondary)
         }
         if exists {
             NavigationLink { PlaybackView(url: url) } label: { label }
@@ -141,7 +142,7 @@ struct SessionDetailView: View {
                 Spacer()
                 Text(String(format: "%.1fs · %.1f MB", export.durationSeconds, sizeMB))
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.slTextSecondary)
             }
             if exists {
                 HStack(spacing: 16) {
@@ -155,7 +156,7 @@ struct SessionDetailView: View {
                 }
                 .font(.caption)
             } else {
-                Text("file missing").font(.caption).foregroundStyle(.secondary)
+                Text("file missing").font(.caption).foregroundStyle(Color.slTextSecondary)
             }
         }
     }

@@ -9,6 +9,7 @@ import SwiftUI
 struct StatsView: View {
     @Query private var sessions: [Session]
     @Query private var tagRanges: [TagRange]
+    @Environment(\.modelContext) private var context
 
     private var finishedSessions: [Session] {
         sessions.filter { $0.status == .ended }
@@ -58,64 +59,91 @@ struct StatsView: View {
     }
 
     var body: some View {
-        List {
-            Section("Totals") {
-                LabeledContent("Total study time", value: Formatters.studyTime(totalSeconds))
-                LabeledContent("Sessions", value: "\(finishedSessions.count)")
-                LabeledContent("Current streak",
-                               value: "\(streak) day\(streak == 1 ? "" : "s")")
-                LabeledContent("Longest streak",
-                               value: "\(longestStreak) day\(longestStreak == 1 ? "" : "s")")
-            }
-
-            Section("By tag") {
-                if split.total <= 0 {
-                    Text("No tagged sessions yet").foregroundStyle(.secondary)
-                } else {
-                    TagSplitBar(split: split)
-                    ForEach(split.shares, id: \.tag) { share in
-                        LabeledContent(share.tag, value: Formatters.studyTime(share.seconds))
+        Group {
+            if finishedSessions.isEmpty {
+                EmptyStateView(
+                    systemImage: "chart.bar.xaxis",
+                    title: "No data yet",
+                    message: "Finish a study session to see your totals, streaks, and heatmap here.")
+            } else {
+                List {
+                    Section("Totals") {
+                        LabeledContent("Total study time", value: Formatters.studyTime(totalSeconds))
+                        LabeledContent("Sessions", value: "\(finishedSessions.count)")
+                        LabeledContent("Current streak",
+                                       value: "\(streak) day\(streak == 1 ? "" : "s")")
+                        LabeledContent("Longest streak",
+                                       value: "\(longestStreak) day\(longestStreak == 1 ? "" : "s")")
                     }
-                    if split.untagged > 0 {
-                        LabeledContent("Untagged", value: Formatters.studyTime(split.untagged))
-                            .foregroundStyle(.secondary)
+
+                    Section("By tag") {
+                        if split.total <= 0 {
+                            Text("No tagged sessions yet").foregroundStyle(Color.slTextSecondary)
+                        } else {
+                            TagSplitBar(split: split, context: context)
+                            ForEach(split.shares, id: \.tag) { share in
+                                LabeledContent {
+                                    Text(Formatters.studyTime(share.seconds))
+                                } label: {
+                                    Label {
+                                        Text(share.tag)
+                                    } icon: {
+                                        Circle().fill(tagColor(share.tag, in: context)).frame(width: 10, height: 10)
+                                            .accessibilityHidden(true)
+                                    }
+                                }
+                            }
+                            if split.untagged > 0 {
+                                LabeledContent("Untagged", value: Formatters.studyTime(split.untagged))
+                                    .foregroundStyle(Color.slTextSecondary)
+                            }
+                        }
+                    }
+
+                    Section("Last 12 weeks") {
+                        HeatmapView(dailySeconds: dailySeconds)
+                            .listRowInsets(EdgeInsets(top: DesignTokens.Spacing.md,
+                                                      leading: DesignTokens.Spacing.lg,
+                                                      bottom: DesignTokens.Spacing.md,
+                                                      trailing: DesignTokens.Spacing.lg))
                     }
                 }
-            }
-
-            Section("Last 12 weeks") {
-                HeatmapView(dailySeconds: dailySeconds)
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .tokenizedListStyle()
             }
         }
         .navigationTitle("Stats")
         .navigationBarTitleDisplayMode(.inline)
+        .screenBackground()
     }
 }
 
 /// A single horizontal bar partitioned into per-tag bands plus untagged.
+/// Bands use each tag's own persisted `Tag.colorHex` (`TagCatalog.palette`,
+/// tuned for the dark surfaces) so a tag reads as the same color here as it
+/// does as a chip in Tagging and Library, rather than a second, unrelated
+/// palette that happened to also render on a dark background.
 private struct TagSplitBar: View {
     let split: Stats.Split
-
-    private let palette: [Color] = [.blue, .orange, .green, .purple, .pink, .teal, .indigo, .yellow]
+    let context: ModelContext
 
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 1) {
-                ForEach(Array(split.shares.enumerated()), id: \.element.tag) { index, share in
+                ForEach(split.shares, id: \.tag) { share in
                     Rectangle()
-                        .fill(palette[index % palette.count])
+                        .fill(tagColor(share.tag, in: context))
                         .frame(width: width(share.seconds, in: geo.size.width))
                 }
                 if split.untagged > 0 {
                     Rectangle()
-                        .fill(Color.gray.opacity(0.35))
+                        .fill(Color.slTextSecondary.opacity(0.35))
                         .frame(width: width(split.untagged, in: geo.size.width))
                 }
             }
         }
         .frame(height: 18)
         .clipShape(Capsule())
+        .accessibilityHidden(true)
     }
 
     private func width(_ seconds: Double, in total: CGFloat) -> CGFloat {
@@ -147,19 +175,22 @@ private struct HeatmapView: View {
                 ForEach(Array(columns.enumerated()), id: \.offset) { _, week in
                     VStack(spacing: 3) {
                         ForEach(week, id: \.self) { key in
+                            let seconds = dailySeconds[key] ?? 0
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(color(for: dailySeconds[key] ?? 0))
+                                .fill(color(for: seconds))
                                 .frame(width: 16, height: 16)
+                                .accessibilityLabel("\(key): \(seconds > 0 ? Formatters.studyTime(seconds) : "no study time")")
                         }
                     }
                 }
             }
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func color(for seconds: Double) -> Color {
-        guard seconds > 0 else { return Color.gray.opacity(0.15) }
+        guard seconds > 0 else { return Color.slSurface2 }
         let intensity = 0.25 + 0.75 * min(seconds / maxSeconds, 1)
-        return Color.accentColor.opacity(intensity)
+        return Color.slAccent.opacity(intensity)
     }
 }
