@@ -98,6 +98,11 @@ targets:
         INFOPLIST_FILE: StudyLapseActivity/Info.plist
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"
+        # Must be the parent app's bundle ID, prefixed — XcodeGen's default
+        # per-target ID (bundleIdPrefix.TargetName) gives siblings, which
+        # both the simulator and a real install refuse ("Mismatched bundle
+        # IDs").
+        PRODUCT_BUNDLE_IDENTIFIER: com.placeholder.StudyLapse.StudyLapseActivity
 ```
 
 `StudyLapse` moved from `GENERATE_INFOPLIST_FILE: YES` (build-setting-synthesized) to a

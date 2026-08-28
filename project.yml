@@ -67,3 +67,8 @@ targets:
         INFOPLIST_FILE: StudyLapseActivity/Info.plist
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"
+        # An extension's bundle ID must be the parent app's, prefixed — a
+        # sibling ID makes both the simulator and a real install refuse it
+        # ("Mismatched bundle IDs"). XcodeGen's per-target default
+        # (bundleIdPrefix.TargetName) gives siblings, so this is explicit.
+        PRODUCT_BUNDLE_IDENTIFIER: com.placeholder.StudyLapse.StudyLapseActivity
