@@ -1,17 +1,17 @@
 # Status
 
 **Last updated:** 2026-08-27
-**Current phase:** 6 of 11 — Voiceover. **Code-complete on `main`**; all four
-CI jobs green (run on `74b085c`). All four acceptance criteria are
-`[device]`/`[eyes-on]` — none checked; written up under *Needs developer
-verification* with the CI test that proves the logic behind each. Phases 0–5
+**Current phase:** 6 of 11 — Voiceover. **Complete.** All four CI jobs green
+(run on `dcead64`). All four acceptance criteria are `[device]`/`[eyes-on]`;
+the developer **accepted them on the strength of the CI tests that prove the
+logic** (2026-08-27, "good enough for now") without a device pass — the
+on-device / ears-on checks in *Needs developer verification* are still worth
+running when convenient, especially criterion 4 (no audible click). Phases 0–6
 complete.
-**Next action:** Developer sideloads the current `main` build and runs the four
-checks under *Needs developer verification* (record a take at 12.0s, re-export,
-confirm alignment + no click; change a profile setting and confirm the stale
-banner; confirm the record button is disabled inside a take). Pass → check the
-boxes, move Phase 6 to Done. Fail → fix. Then Phase 7 per BUILD.md. Nothing
-blocked.
+**Next action:** Hold. The developer explicitly asked not to start Phase 7 yet
+(2026-08-27). When they give the go-ahead, Phase 7 (Live Activity, guards,
+dimming, ghost overlay, exposure/WB locking, framing guide, remaining overlay
+styles + intro/outro cards) per BUILD.md. Nothing blocked.
 
 **UI note (developer, 2026-08-27):** the tagging screens (and every screen so
 far) are functional-only — no design tokens, no polish. Visual work is
@@ -85,9 +85,19 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 6 — Voiceover.** Code-complete on `main`, all four CI jobs green.
-  All four BUILD.md criteria are `[device]`/`[eyes-on]` — none checked (LOOP.md
-  rule); written up under *Needs developer verification* below. Six commits:
+- Nothing. Phase 6 is complete (see Done). Phase 7 not started — the developer
+  asked to hold before starting it.
+
+## Done
+
+- **Phase 6 — Voiceover** (2026-08-27) — all four criteria accepted by the
+  developer on the CI tests that prove the logic ("good enough for now"),
+  without a device pass; a later on-device/ears-on check is still noted under
+  *Needs developer verification* (criterion 4 especially). All four CI jobs
+  green, seven commits directly on `main` (`31a43f2`…`dcead64`). Advisor passes
+  caught the composition-track-keyed audio mix, `.playAndRecord` + mic
+  permission + DebugLog, all-settings fingerprint, `ExportRecord`-revision
+  stamping, and the `@State` ticker. Seven commits:
   1. `StudyLapseCore/VoiceoverTimeline.swift` — pure output-axis interval math:
      `isPlayheadInsideAnyTake` (record-button gate), `wouldOverlap`,
      `resolveOverlaps` (keep-newer by `createdAt`), `fade` (50 ms ramps,
@@ -113,11 +123,25 @@ streaming, Instruments, and any paid-program entitlement.
      fades keyed to the **composition** track. `ExportCoordinator.export`
      reconciles the revision, passes snapshots, exposes `lastExportRecord`.
      Three `ExportTests` methods (`simulator`).
-  5. `Features/Voiceover/VoiceoverView.swift` — player + 10 Hz ticker playhead,
-     record/stop, timeline strip (mute/delete), stale banner (delete action),
-     playhead-inside-take gate. Entry points: export result screen
-     ("Add Voiceover") and each export row in the library detail sheet.
-  6. This doc + docs/EXPORT.md + OPEN_QUESTIONS Q-008.
+  5. `Features/Voiceover/VoiceoverView.swift` — player + a `@State` 10 Hz
+     ticker playhead, record/stop, timeline strip (mute/delete), stale banner
+     (delete action), playhead-inside-take gate. Entry points: export result
+     screen ("Add Voiceover") and each `canReExport` export row in the library
+     detail sheet.
+  6. Docs — STATUS / BUILD (per-criterion CI-proof notes) / docs/EXPORT.md
+     (stage 3b + Voiceover mixing) / docs/UI.md §6 / OPEN_QUESTIONS Q-008.
+  7. Advisor follow-ups — `@State` ticker (was rebuilt every body eval),
+     `AVAudioRecorderVoiceover.stop()` restores the session to `.playback`,
+     library "Voiceover" link gated on `canReExport`, headphones note.
+
+  One red run along the way: a test read `track.timeRange.start` (always 0)
+  instead of the non-empty `AVCompositionTrackSegment` target mapping; the
+  fix's green run confirmed `insertTimeRange(at:)` pads leading empty time so
+  takes land at their true output offset.
+
+  Deviations logged: `ExportProfile.fingerprintAtRevision` field;
+  `stopTake()` returns `VoiceoverTake?`; `Prepared.audioMix`; stale banner is
+  delete-only (→ Q-008).
 
 ## Done
 
@@ -290,7 +314,7 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Next up
 
-1. Developer verification of Phase 6 (four checks below).
+1. Hold for the developer's go-ahead on Phase 7.
 2. Phase 7 — Live Activity, guards, dimming, ghost overlay, exposure/WB
    locking, framing guide, remaining overlay styles + intro/outro cards.
    Depends on Phase 2 (done). Note the free-Apple-ID three-app limit — the
@@ -298,11 +322,13 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## Needs developer verification
 
-**Phase 6 — Voiceover.** All four criteria are `[device]`/`[eyes-on]`. CI
-proves the logic; the on-device checks confirm the AVFoundation behaviour that
-can't run in headless CI (`AVAudioRecorder`, the CoreAnimationTool render path,
-audible playback). Reach the screen via Export → render → "Add Voiceover", or
-Library → session → an export row → "Voiceover".
+**Phase 6 — Voiceover — accepted on CI, device pass optional.** The developer
+signed the four criteria off on 2026-08-27 on the strength of the CI tests
+below ("good enough for now"), so Phase 6 is in Done. The checks here were
+never run on a physical device — worth doing when convenient, criterion 4
+(no audible click) most of all, since CI can only prove the mix was built, not
+that it sounds clean. Reach the screen via Export → render → "Add Voiceover",
+or Library → session → an export row → "Voiceover".
 
 **Wear headphones for checks 1 and 4.** The recorder uses `.defaultToSpeaker`,
 so recording a second take while the first plays through the speaker bleeds the

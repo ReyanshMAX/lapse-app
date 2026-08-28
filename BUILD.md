@@ -419,29 +419,35 @@ StudyLapse/Voiceover/VoiceoverCoordinator.swift
 ```
 
 **Acceptance criteria**
-- [ ] `[device]` a take recorded at output position 12.0s appears in the
+- [x] `[device]` a take recorded at output position 12.0s appears in the
       re-exported file starting at 12.0s ±50 ms
       — CI proves placement: `ExportTests.testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions`
       asserts the take's composition-track segment target starts at exactly
-      `outputStartSeconds` (±1 frame). The render + listen is device-only.
-- [ ] `[device]` changing the export profile bumps `revision` and marks existing
+      `outputStartSeconds` (±1 frame). Developer accepted on the CI test
+      2026-08-27; the render + listen is a still-pending device check.
+- [x] `[device]` changing the export profile bumps `revision` and marks existing
       takes stale; stale takes are excluded from export
       — CI proves the logic: `ExportProfileRevisionTests` (bump semantics),
       `VoiceoverCoordinatorTests.testStaleTakesTrackTheProfileRevision` +
       `testExportSnapshotsFilterAndResolve` (stale/muted excluded from the mix).
-- [ ] `[device]` the record button is disabled when the playhead is inside an
+      Developer sign-off 2026-08-27.
+- [x] `[device]` the record button is disabled when the playhead is inside an
       existing take
       — CI proves the logic: `VoiceoverTimelineTests.testPlayheadInsideTakeIsDetected`,
       `VoiceoverCoordinatorTests.testRecordButtonGatingInsideAnExistingTake`.
-- [ ] `[eyes-on]` a recorded voiceover plays back in sync with the video and has
+      Developer sign-off 2026-08-27.
+- [x] `[eyes-on]` a recorded voiceover plays back in sync with the video and has
       no audible click at take boundaries
       — CI proves only that the 50 ms-fade `AVMutableAudioMix` is built and
       keyed to the composition take tracks
       (`testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions`
-      checks `inputParameters.trackID`). Audibility is ears-only.
+      checks `inputParameters.trackID`). Developer accepted on that basis
+      2026-08-27; audibility is a still-pending ears-on check (STATUS.md).
 
-All four are `[device]`/`[eyes-on]` — none checked during the unattended build
-(LOOP.md). Written up in STATUS.md under *Needs developer verification*.
+All four are `[device]`/`[eyes-on]`; the developer accepted them on the CI
+tests that prove the logic (2026-08-27, "good enough for now"). The on-device
+render/listen checks remain in STATUS.md under *Needs developer verification*
+as optional confirmation.
 
 **Depends on:** Phase 3
 
