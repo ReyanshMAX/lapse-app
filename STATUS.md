@@ -84,9 +84,9 @@ streaming, Instruments, and any paid-program entitlement.
 
 ## In progress
 
-- **Phase 8 — UI polish** (2026-08-28) — code-complete, all CI jobs expected
-  green (verify latest run before sign-off), awaiting the developer's
-  eyes-on pass. See *Needs developer verification* below. Not moved to Done
+- **Phase 8 — UI polish** (2026-08-28) — code-complete, all four CI jobs
+  green (run 33151642437), awaiting the developer's eyes-on pass. See
+  *Needs developer verification* below. Not moved to Done
   until the developer confirms the screens actually read as "looks
   finished," per this phase's own last acceptance criterion.
   - `StudyLapse/Shared/DesignTokens.swift` (new) — docs/UI.md's dark
@@ -135,6 +135,8 @@ streaming, Instruments, and any paid-program entitlement.
   - Nothing outside `Features/`, `Shared/`, `docs/UI.md`, and
     `OPEN_QUESTIONS.md` changed — no model/logic files touched, matching
     acceptance criterion 1.
+  - All four CI jobs green on both commits: the design-tokens commit
+    (run 33151642437) and this STATUS/BUILD docs commit (run 33151895351).
 
 ## Done
 

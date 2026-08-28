@@ -567,10 +567,10 @@ views, it does not introduce new types or protocols.
       `Features/`, `Shared/`, and docs/UI.md changed
       — diff for the Phase 8 commit touches only `StudyLapse/Shared/DesignTokens.swift`
       (new), the eight `Features/` screen files, and `docs/UI.md` (+
-      `OPEN_QUESTIONS.md`, a process doc, not code); CI green on the run for
-      that commit (see STATUS.md for the run number). No `StudyLapseCore`,
-      `Model/`, `Capture/`, `Export/`, `Storage/`, or `Voiceover/` file
-      touched — verified by `git show --stat`.
+      `OPEN_QUESTIONS.md`, a process doc, not code); all four CI jobs green
+      on run 33151642437. No `StudyLapseCore`, `Model/`, `Capture/`,
+      `Export/`, `Storage/`, or `Voiceover/` file touched — verified by
+      `git show --stat`.
 - [ ] `[eyes-on]` every screen (Record ×3 states, Tagging ×2 modes, Export,
       Voiceover, Library, Stats) uses the docs/UI.md token palette with no
       leftover system-default colors or fonts
