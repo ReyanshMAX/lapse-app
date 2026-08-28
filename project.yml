@@ -13,6 +13,8 @@ targets:
     platform: iOS
     sources:
       - path: StudyLapse
+        excludes:
+          - Info.plist
       # StudyLapseActivityAttributes.swift crosses the app/widget-extension
       # process boundary (docs/ARCHITECTURE.md: no separate framework in v1),
       # so it's compiled into both targets from this one file.
@@ -24,31 +26,16 @@ targets:
     scheme:
       testTargets:
         - StudyLapseTests
-    info:
-      properties:
-        # NSSupportsLiveActivities and CFBundleURLTypes are booleans/arrays,
-        # which a build-setting-only Info.plist can't express — merged in
-        # alongside the GENERATE_INFOPLIST_FILE-synthesized keys below.
-        NSSupportsLiveActivities: true
-        CFBundleURLTypes:
-          - CFBundleURLSchemes:
-              - studylapse
-            CFBundleURLName: com.placeholder.studylapse
     settings:
       base:
         PRODUCT_NAME: StudyLapse
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSCameraUsageDescription: >-
-          StudyLapse records a timelapse of your study session using the camera.
-          Video stays on this device and is never uploaded.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: >-
-          Used only when you record a voiceover over a finished timelapse.
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: >-
-          Used to save your exported timelapse to Photos.
+        # A checked-in Info.plist, not GENERATE_INFOPLIST_FILE — this target
+        # needs CFBundleURLTypes (the Resume deep link) and
+        # NSSupportsLiveActivities, which are an array/boolean a
+        # build-setting-only Info.plist can't express.
+        INFOPLIST_FILE: StudyLapse/Info.plist
   StudyLapseTests:
     type: bundle.unit-test
     platform: iOS
@@ -68,17 +55,15 @@ targets:
     platform: iOS
     sources:
       - path: StudyLapseActivity
+        excludes:
+          - Info.plist
     dependencies:
       - package: StudyLapseCore
-    info:
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_NAME: StudyLapseActivity
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: StudyLapseActivity/Info.plist
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"

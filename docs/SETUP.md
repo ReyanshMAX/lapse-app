@@ -49,6 +49,8 @@ targets:
     platform: iOS
     sources:
       - path: StudyLapse
+        excludes:
+          - Info.plist
       # Crosses the app/widget-extension process boundary — compiled into
       # both targets from this one file rather than a separate framework
       # (docs/ARCHITECTURE.md non-goals).
@@ -60,30 +62,12 @@ targets:
     scheme:
       testTargets:
         - StudyLapseTests
-    info:
-      properties:
-        # Booleans/arrays a build-setting-only Info.plist can't express;
-        # merged in alongside the GENERATE_INFOPLIST_FILE-synthesized keys.
-        NSSupportsLiveActivities: true
-        CFBundleURLTypes:
-          - CFBundleURLSchemes:
-              - studylapse
-            CFBundleURLName: com.placeholder.studylapse
     settings:
       base:
         PRODUCT_NAME: StudyLapse
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSCameraUsageDescription: >-
-          StudyLapse records a timelapse of your study session using the camera.
-          Video stays on this device and is never uploaded.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: >-
-          Used only when you record a voiceover over a finished timelapse.
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: >-
-          Used to save your exported timelapse to Photos.
+        INFOPLIST_FILE: StudyLapse/Info.plist
   StudyLapseTests:
     type: bundle.unit-test
     platform: iOS
@@ -102,25 +86,28 @@ targets:
     platform: iOS
     sources:
       - path: StudyLapseActivity
+        excludes:
+          - Info.plist
     dependencies:
       - package: StudyLapseCore
-    info:
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_NAME: StudyLapseActivity
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: StudyLapseActivity/Info.plist
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"
 ```
 
-`GENERATE_INFOPLIST_FILE: YES` is required — the `INFOPLIST_KEY_*` settings above are inert
-without it, and with no physical `Info.plist` in `sources`, the app has no Info.plist at all
-without it (archive validation fails with "Build input file cannot be found: .../Info.plist").
+`StudyLapse` moved from `GENERATE_INFOPLIST_FILE: YES` (build-setting-synthesized) to a
+checked-in `Info.plist` + `INFOPLIST_FILE` in Phase 7 — `CFBundleURLTypes` (the Resume deep
+link) and `NSSupportsLiveActivities` are an array/boolean that a build-setting-only Info.plist
+can't express (XcodeGen's `info.properties` merge needs an explicit `info.path`, which turns
+into the same checked-in-file approach anyway — simpler to do it directly). `StudyLapseTests`
+and the new `StudyLapseActivity` extension still use `GENERATE_INFOPLIST_FILE: YES` /
+`INFOPLIST_FILE`; the `excludes: [Info.plist]` on each target's `sources` keeps the checked-in
+file from *also* being picked up as a bundle resource by the normal directory glob.
 
 `StudyLapseTests` is a minimal placeholder XCTest target so the `StudyLapse` scheme's test
 action is non-empty (see "Simulator tests" below); real simulator-level tests land here in
