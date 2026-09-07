@@ -24,6 +24,19 @@ struct RecordView: View {
         authorizationStatus == .authorized
     }
 
+    /// Whether the standalone idle-preview session should be running right
+    /// now — never while recording (the real capture session supplies the
+    /// preview then) or backgrounded. A single `Equatable` value driving one
+    /// `.task(id:)` (see `body`): multiple independent `Task { await ... }`
+    /// calls from separate `.onAppear`/`.onChange` handlers raced each other
+    /// once `CameraPreviewController.start`/`stop` became `async` — Swift's
+    /// scheduler could run a later "stop" before an earlier "start" landed on
+    /// the session queue, leaving the preview off with nothing left to
+    /// retrigger it. `.task(id:)` cancels/supersedes instead of racing.
+    private var previewShouldRun: Bool {
+        showsPreview && scenePhase == .active && coordinator.status != .recording
+    }
+
     /// While recording, bind to the real capture session's own preview layer
     /// (only one `AVCaptureSession` can hold the camera at a time); otherwise
     /// the standalone idle-preview session.
@@ -59,10 +72,14 @@ struct RecordView: View {
             }
             .navigationTitle("StudyLapse")
             .screenBackground()
-            .onAppear { updatePreviewSession() }
+            .task(id: previewShouldRun) {
+                if previewShouldRun {
+                    await previewController.start()
+                } else {
+                    await previewController.stop()
+                }
+            }
             .onDisappear { Task { await previewController.stop() } }
-            .onChange(of: coordinator.status) { _, _ in updatePreviewSession() }
-            .onChange(of: scenePhase) { _, _ in updatePreviewSession() }
             .fullScreenCover(item: $taggingSession) { session in
                 TaggingFlowView(session: session)
             }
@@ -80,22 +97,6 @@ struct RecordView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink("Debug Log") { DebugLogView() }
                 }
-            }
-        }
-    }
-
-    /// Starts or stops the *standalone idle-preview* session — never while
-    /// recording, since the real capture session supplies the preview then
-    /// (`boundPreviewSession`), and a second `AVCaptureSession` would just
-    /// fail to acquire the camera. Also off when backgrounded.
-    /// `CameraPreviewController` itself no-ops a redundant start/stop, so
-    /// calling this liberally on every relevant state change is cheap.
-    private func updatePreviewSession() {
-        Task {
-            if showsPreview, scenePhase == .active, coordinator.status != .recording {
-                await previewController.start()
-            } else {
-                await previewController.stop()
             }
         }
     }
@@ -255,7 +256,8 @@ struct RecordView: View {
                     _ = await CameraPermission.requestAccess()
                     authorizationStatus = CameraPermission.status
                     DebugLog.write("Permission", "camera authorization now \(authorizationStatus.rawValue)")
-                    updatePreviewSession()
+                    // `authorizationStatus` changing flips `previewShouldRun`,
+                    // which the `.task(id:)` in `body` reacts to automatically.
                 }
             }
             .buttonStyle(.borderedProminent)
