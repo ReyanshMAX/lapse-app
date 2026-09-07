@@ -149,7 +149,7 @@ final class CaptureController: @unchecked Sendable {
         outputFrameRate: Int32,
         onClipOpened: @escaping @Sendable (OpenedClip) -> Void,
         onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void
-    ) throws {
+    ) async throws {
         let firstURL = urlForClip(firstClipIndex)
         let segment = try makeSegment(url: firstURL, index: firstClipIndex)
         queue.sync {
@@ -168,7 +168,23 @@ final class CaptureController: @unchecked Sendable {
         // `rollOver` on the capture queue.
         onClipOpened(OpenedClip(index: firstClipIndex, url: firstURL))
         attachFrameHandler()
-        try source.start()
+        // `source.start()` blocks on real hardware acquisition
+        // (`AVCaptureSession.startRunning()`), which can take a real, variable
+        // amount of wall-clock time. Run it on `queue` and have the caller
+        // (SessionCoordinator, on the main actor) suspend rather than block
+        // its own thread — blocking the main thread here risks an iOS
+        // watchdog termination that reads to the user as the app just
+        // closing, not just a stutter.
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async { [source] in
+                do {
+                    try source.start()
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
         DebugLog.write(
             "Capture",
             "recording started at index \(firstClipIndex), interval \(intervalSeconds)s, fps \(outputFrameRate)"
@@ -182,9 +198,13 @@ final class CaptureController: @unchecked Sendable {
     /// no window where a session teardown races the persist.
     @discardableResult
     func stopRecording() async -> FinalizedClip? {
-        source.stop()
-        return await withCheckedContinuation { continuation in
-            queue.async { [weak self] in
+        await withCheckedContinuation { continuation in
+            queue.async { [weak self, source] in
+                // `source.stop()` blocks on real hardware teardown
+                // (`AVCaptureSession.stopRunning()`) — run it here, on this
+                // background queue, never on the caller's (MainActor's)
+                // thread. See the matching note in `startRecording`.
+                source.stop()
                 guard let self, let segment = self.current else {
                     continuation.resume(returning: nil)
                     return

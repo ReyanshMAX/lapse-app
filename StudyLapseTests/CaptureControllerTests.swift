@@ -67,7 +67,7 @@ final class CaptureControllerTests: XCTestCase {
         let collector = FinalizedCollector()
 
         let openedIndices = FinalizedCollector.IndexBox()
-        try controller.startRecording(
+        try await controller.startRecording(
             firstClipIndex: 0,
             urlForClip: { index in dir.appendingPathComponent(String(format: "%03d.mov", index)) },
             intervalSeconds: 3,

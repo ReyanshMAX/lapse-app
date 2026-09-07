@@ -97,7 +97,7 @@ final class GuardMonitorTests: XCTestCase {
             makeFrameSource: { source },
             makeGuardSignalSource: { signalSource })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)
         XCTAssertEqual(coordinator.status, .recording)
 
@@ -116,7 +116,7 @@ final class GuardMonitorTests: XCTestCase {
             makeFrameSource: { source },
             makeGuardSignalSource: { signalSource })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)
 
         signalSource.push(fullReading(thermal: .critical))
@@ -136,7 +136,7 @@ final class GuardMonitorTests: XCTestCase {
             makeFrameSource: { source },
             makeGuardSignalSource: { signalSource })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)
 
         signalSource.push(fullReading(diskBytes: 100_000_000))
@@ -154,7 +154,7 @@ final class GuardMonitorTests: XCTestCase {
             makeFrameSource: { source },
             makeGuardSignalSource: { signalSource })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)
 
         signalSource.push(fullReading(battery: 0.08))
@@ -177,7 +177,7 @@ final class GuardMonitorTests: XCTestCase {
             makeFrameSource: { source },
             makeGuardSignalSource: { signalSource })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)
         signalSource.push(fullReading(thermal: .serious))
         await waitUntil({ coordinator.warnings.contains(.thermalSerious) })

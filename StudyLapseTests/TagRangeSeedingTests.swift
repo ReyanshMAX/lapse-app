@@ -68,12 +68,12 @@ final class TagRangeSeedingTests: XCTestCase {
 
         let source = SyntheticFrameSource(size: CGSize(width: 1920, height: 1080), virtualFrameRate: 30)
         let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 90)                      // 30 frames → clip 0
         await coordinator.pause()
         let deadline = Date().addingTimeInterval(5)
         while coordinator.clipCount < 1 && Date() < deadline { try? await Task.sleep(nanoseconds: 20_000_000) }
-        try coordinator.resume()
+        try await coordinator.resume()
         source.emit(seconds: 60)                      // 20 frames → clip 1
         await coordinator.end()
 

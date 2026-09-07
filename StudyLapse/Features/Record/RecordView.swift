@@ -60,7 +60,7 @@ struct RecordView: View {
             .navigationTitle("StudyLapse")
             .screenBackground()
             .onAppear { updatePreviewSession() }
-            .onDisappear { previewController.stop() }
+            .onDisappear { Task { await previewController.stop() } }
             .onChange(of: coordinator.status) { _, _ in updatePreviewSession() }
             .onChange(of: scenePhase) { _, _ in updatePreviewSession() }
             .fullScreenCover(item: $taggingSession) { session in
@@ -91,10 +91,12 @@ struct RecordView: View {
     /// `CameraPreviewController` itself no-ops a redundant start/stop, so
     /// calling this liberally on every relevant state change is cheap.
     private func updatePreviewSession() {
-        if showsPreview, scenePhase == .active, coordinator.status != .recording {
-            previewController.start()
-        } else {
-            previewController.stop()
+        Task {
+            if showsPreview, scenePhase == .active, coordinator.status != .recording {
+                await previewController.start()
+            } else {
+                await previewController.stop()
+            }
         }
     }
 
@@ -204,16 +206,18 @@ struct RecordView: View {
     private func beginRecording() {
         errorMessage = nil
         pendingStartWarnings = []
-        // Release the camera from the idle preview session before the real
-        // capture session tries to acquire it — CameraPreviewController.stop()
-        // blocks until the hardware is actually released (mirrors
-        // CameraFrameSource.stop()'s own synchronous style).
-        previewController.stop()
-        do {
-            try coordinator.startNewSession()
-        } catch {
-            errorMessage = "Couldn't start recording: \(error.localizedDescription)"
-            DebugLog.write("Record", "start failed: \(error)")
+        Task {
+            // Release the camera from the idle preview session before the
+            // real capture session tries to acquire it — `await`ing
+            // `previewController.stop()` suspends until the hardware is
+            // actually released.
+            await previewController.stop()
+            do {
+                try await coordinator.startNewSession()
+            } catch {
+                errorMessage = "Couldn't start recording: \(error.localizedDescription)"
+                DebugLog.write("Record", "start failed: \(error)")
+            }
         }
     }
 
@@ -229,12 +233,14 @@ struct RecordView: View {
 
     private func resume() {
         errorMessage = nil
-        previewController.stop()
-        do {
-            try coordinator.resume()
-        } catch {
-            errorMessage = "Couldn't resume: \(error.localizedDescription)"
-            DebugLog.write("Record", "resume failed: \(error)")
+        Task {
+            await previewController.stop()
+            do {
+                try await coordinator.resume()
+            } catch {
+                errorMessage = "Couldn't resume: \(error.localizedDescription)"
+                DebugLog.write("Record", "resume failed: \(error)")
+            }
         }
     }
 

@@ -40,7 +40,7 @@ struct StudyLapseApp: App {
                     // the entire signal.
                     guard url.host == "resume", coordinator.status == .paused else { return }
                     DebugLog.write("Session", "resume deep link received")
-                    try? coordinator.resume()
+                    Task { try? await coordinator.resume() }
                 }
         }
         .modelContainer(container)

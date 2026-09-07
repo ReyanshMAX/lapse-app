@@ -214,9 +214,9 @@ StudyLapseCore/Sources/StudyLapseCore/DayBoundary.swift
 
 StudyLapse/App/SessionCoordinator.swift
   @Observable final class SessionCoordinator {
-      func startNewSession() throws
+      func startNewSession() async throws
       func pause() async
-      func resume() throws
+      func resume() async throws
       func end() async
       func handleScenePhase(_ phase: ScenePhase) async
       func recoverOnLaunch() async

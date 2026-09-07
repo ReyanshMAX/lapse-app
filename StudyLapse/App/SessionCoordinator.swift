@@ -87,7 +87,7 @@ final class SessionCoordinator {
 
     // MARK: Lifecycle
 
-    func startNewSession() throws {
+    func startNewSession() async throws {
         guard status == .ended else {
             throw SessionCoordinatorError.sessionAlreadyActive
         }
@@ -109,7 +109,7 @@ final class SessionCoordinator {
         clipCount = 0
         lastError = nil
 
-        try beginCapture(firstClipIndex: 0)
+        try await beginCapture(firstClipIndex: 0)
         setIdleTimerDisabled(true)
         setScreenDimmed(true)
         startTicking()
@@ -136,14 +136,14 @@ final class SessionCoordinator {
         evaluateAutoClose()
     }
 
-    func resume() throws {
+    func resume() async throws {
         guard let session else { throw SessionCoordinatorError.noSession }
         guard status == .paused else { throw SessionCoordinatorError.notResumable }
         let nextIndex = (session.clips.map(\.index).max() ?? -1) + 1
         status = .recording
         session.status = .recording
         try context.save()
-        try beginCapture(firstClipIndex: nextIndex)
+        try await beginCapture(firstClipIndex: nextIndex)
         setIdleTimerDisabled(true)
         setScreenDimmed(true)
         startTicking()
@@ -243,7 +243,7 @@ final class SessionCoordinator {
 
     // MARK: Capture wiring
 
-    private func beginCapture(firstClipIndex: Int) throws {
+    private func beginCapture(firstClipIndex: Int) async throws {
         guard let session else { throw SessionCoordinatorError.noSession }
         let sessionID = session.id
         let interval = session.captureIntervalSeconds
@@ -252,7 +252,7 @@ final class SessionCoordinator {
         let controller = CaptureController(source: makeFrameSource())
         captureController = controller
 
-        try controller.startRecording(
+        try await controller.startRecording(
             firstClipIndex: firstClipIndex,
             urlForClip: { index in
                 StorageLocator.url(forRelativePath:

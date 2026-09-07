@@ -52,13 +52,13 @@ final class SessionCoordinatorTests: XCTestCase {
         let source = newSource()
         let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 120)                 // 2 minutes studied → 40 frames
         await coordinator.pause()
         await waitUntil({ coordinator.clipCount == 1 }, "first chunk not persisted")
 
         // 10 minutes backgrounded — nothing emitted.
-        try coordinator.resume()
+        try await coordinator.resume()
         source.emit(seconds: 120)                 // 2 more minutes → 40 frames
         await coordinator.end()
         await waitUntil({ coordinator.status == .ended }, "session did not end")
@@ -80,7 +80,7 @@ final class SessionCoordinatorTests: XCTestCase {
     func testSessionSurvivesRelaunchAndResumes() async throws {
         let source1 = newSource()
         let first = SessionCoordinator(context: context, makeFrameSource: { source1 })
-        try first.startNewSession()
+        try await first.startNewSession()
         source1.emit(seconds: 90)                 // 30 frames → 90s
         await first.pause()
         await waitUntil({ first.clipCount == 1 })
@@ -96,7 +96,7 @@ final class SessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(relaunched.clipCount, 1)
         XCTAssertEqual(relaunched.studySeconds, 90, accuracy: 1)
 
-        try relaunched.resume()
+        try await relaunched.resume()
         source2.emit(seconds: 60)                 // 20 frames → 60s
         await relaunched.end()
         await waitUntil({ relaunched.status == .ended })
@@ -116,7 +116,7 @@ final class SessionCoordinatorTests: XCTestCase {
         let source = newSource()
         let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         source.emit(seconds: 30)                  // 10 frames → 30s
         await coordinator.handleScenePhase(.background)
 
@@ -141,7 +141,7 @@ final class SessionCoordinatorTests: XCTestCase {
         do {
             let source = newSource()
             let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
-            try coordinator.startNewSession()
+            try await coordinator.startNewSession()
             source.emit(seconds: 45)             // 15 frames into a still-open chunk
             await waitUntil({ ((try? self.context.fetch(FetchDescriptor<Clip>()))?.isEmpty == false) },
                             "the opened clip row should persist before the crash")
@@ -170,8 +170,13 @@ final class SessionCoordinatorTests: XCTestCase {
     func testStartingASecondSessionWhileActiveThrows() async throws {
         let source = newSource()
         let coordinator = SessionCoordinator(context: context, makeFrameSource: { source })
-        try coordinator.startNewSession()
-        XCTAssertThrowsError(try coordinator.startNewSession())
+        try await coordinator.startNewSession()
+        do {
+            try await coordinator.startNewSession()
+            XCTFail("starting a second session while one is active should throw")
+        } catch {
+            // expected
+        }
         await coordinator.end()
         cleanupClipFiles()
     }
@@ -188,7 +193,7 @@ final class SessionCoordinatorTests: XCTestCase {
 
         XCTAssertNil(coordinator.activePreviewSession, "no session before recording starts")
 
-        try coordinator.startNewSession()
+        try await coordinator.startNewSession()
         XCTAssertNil(coordinator.activePreviewSession,
                      "SyntheticFrameSource isn't a CameraFrameSource, so no preview session even while recording")
 

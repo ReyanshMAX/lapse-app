@@ -8,27 +8,37 @@ import AVFoundation
 /// two sessions isolated means nothing here can affect the tested capture
 /// pipeline, and vice versa.
 ///
-/// `start`/`stop` block on their own serial queue exactly like
-/// `CameraFrameSource.start`/`stop` — callers that need the device released
-/// before starting the *real* capture session (`RecordView.beginRecording`)
-/// can call `stop()` synchronously first and be sure the hardware is free.
+/// `start`/`stop` suspend until their work completes on their own serial
+/// queue, exactly like `CameraFrameSource.start`/`stop` — callers that need
+/// the device released before starting the *real* capture session
+/// (`RecordView.beginRecording`) can `await stop()` first and be sure the
+/// hardware is free. Never blocks the calling thread: `AVCaptureSession
+/// .startRunning()`/`stopRunning()` are blocking hardware calls that can take
+/// a real, variable amount of time, and blocking the main thread with them
+/// (as a plain `DispatchQueue.sync` from a `@MainActor` caller would) risks
+/// an iOS watchdog termination — which reads to the user as the app randomly
+/// closing, not just a stutter.
 final class CameraPreviewController {
     let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "studylapse.preview.session")
     private var configuredPosition: AVCaptureDevice.Position?
 
-    func start(position: AVCaptureDevice.Position = .back) {
-        sessionQueue.sync {
-            configureIfNeeded(position: position)
-            guard !session.isRunning else { return }
-            session.startRunning()
+    func start(position: AVCaptureDevice.Position = .back) async {
+        await withCheckedContinuation { continuation in
+            sessionQueue.async { [self] in
+                configureIfNeeded(position: position)
+                if !session.isRunning { session.startRunning() }
+                continuation.resume()
+            }
         }
     }
 
-    func stop() {
-        sessionQueue.sync {
-            guard session.isRunning else { return }
-            session.stopRunning()
+    func stop() async {
+        await withCheckedContinuation { continuation in
+            sessionQueue.async { [self] in
+                if session.isRunning { session.stopRunning() }
+                continuation.resume()
+            }
         }
     }
 

@@ -64,9 +64,9 @@ final class SessionCoordinator {
     private(set) var studySeconds: Double = 0
     private(set) var warnings: [CaptureWarning] = []
 
-    func startNewSession() throws
+    func startNewSession() async throws
     func pause() async
-    func resume() throws
+    func resume() async throws
     func end() async
     func handleScenePhase(_ phase: ScenePhase) async
     func recoverOnLaunch() async

@@ -45,7 +45,7 @@ final class CaptureController {
                         urlForClip: @escaping @Sendable (Int) -> URL,
                         intervalSeconds: Double, outputFrameRate: Int32,
                         onClipOpened: @escaping @Sendable (OpenedClip) -> Void,
-                        onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void) throws
+                        onClipFinalized: @escaping @Sendable (FinalizedClip) -> Void) async throws
     func stopRecording() async -> FinalizedClip?   // returns the trailing chunk
 }
 ```
@@ -66,6 +66,18 @@ zero frames).
   `videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA]`.
 - Delegate callbacks on `bufferQueue` (serial). All session mutation on
   `sessionQueue`. Never touch either from the main thread.
+- `startRunning()`/`stopRunning()` are themselves blocking calls that can take
+  a real, variable amount of wall-clock time — `CaptureController.startRecording`/
+  `stopRecording` dispatch `FrameSource.start()`/`stop()` onto their own
+  background queue and let the `@MainActor` caller (`SessionCoordinator`)
+  suspend on `await` rather than block its thread. Blocking the main thread on
+  a slow `startRunning()`/`stopRunning()` call risks an iOS watchdog
+  termination — indistinguishable to the user from the app randomly closing.
+  Bug found and fixed 2026-09-07: pausing while recording called `source.stop()`
+  synchronously from `SessionCoordinator` (main actor), and `RecordView`
+  immediately followed it with a synchronous `CameraPreviewController.start()`
+  call to bring up the idle preview — two blocking hardware calls back to back
+  on the main thread.
 - **Lock exposure and white balance for the whole session** after a short warm-up
   (~1s): `device.exposureMode = .locked`, `device.whiteBalanceMode = .locked`.
   Without this, auto-exposure hunting makes the timelapse strobe. Re-lock on each
