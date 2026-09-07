@@ -9,11 +9,6 @@ struct LibraryView: View {
     @Query(sort: \Session.startedAt, order: .reverse) private var sessions: [Session]
     @Environment(\.modelContext) private var context
 
-    private let columns = [
-        GridItem(.flexible(), spacing: DesignTokens.Spacing.md),
-        GridItem(.flexible()),
-    ]
-
     private var finishedSessions: [Session] {
         sessions.filter { $0.status == .ended }
     }
@@ -26,18 +21,36 @@ struct LibraryView: View {
                     title: "No sessions yet",
                     message: "Finished study sessions show up here.")
             } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: DesignTokens.Spacing.md) {
-                        ForEach(finishedSessions) { session in
-                            NavigationLink {
-                                SessionDetailView(session: session)
-                            } label: {
-                                SessionTile(session: session, context: context)
+                GeometryReader { proxy in
+                    // Explicit pixel widths from measured geometry, not
+                    // GridItem's own sizing — every tile gets a fixed,
+                    // known-good width so its content (the thumbnail image
+                    // especially) can never push it past the column, let
+                    // alone the screen edge.
+                    let horizontalPadding = DesignTokens.Spacing.lg
+                    let spacing = DesignTokens.Spacing.md
+                    let columnWidth = (proxy.size.width - horizontalPadding * 2 - spacing) / 2
+
+                    ScrollView {
+                        LazyVGrid(
+                            columns: [
+                                GridItem(.fixed(columnWidth), spacing: spacing),
+                                GridItem(.fixed(columnWidth)),
+                            ],
+                            spacing: spacing
+                        ) {
+                            ForEach(finishedSessions) { session in
+                                NavigationLink {
+                                    SessionDetailView(session: session)
+                                } label: {
+                                    SessionTile(session: session, context: context, width: columnWidth)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, spacing)
                     }
-                    .padding()
                 }
             }
         }
@@ -58,6 +71,7 @@ struct LibraryView: View {
 private struct SessionTile: View {
     let session: Session
     let context: ModelContext
+    let width: CGFloat
     @State private var thumbnail: UIImage?
 
     private var totalStudySeconds: Double {
@@ -76,22 +90,25 @@ private struct SessionTile: View {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .scaledToFill()
+                        .frame(width: width, height: 150)
+                        .clipped()
                 } else {
                     Image(systemName: "film")
                         .font(.title)
                         .foregroundStyle(Color.slTextSecondary)
                 }
             }
-            .frame(height: 150)
-            .frame(maxWidth: .infinity)
+            .frame(width: width, height: 150)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius))
 
             Text(session.startedAt.formatted(date: .abbreviated, time: .omitted))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.slTextPrimary)
+                .lineLimit(1)
             Text(Formatters.studyTime(totalStudySeconds))
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(Color.slTextSecondary)
+                .lineLimit(1)
             // Fixed-height slot regardless of whether this session has tags —
             // otherwise a tagged tile is taller than an untagged one, and
             // since each tile's background sizes to its own content (not the
@@ -103,11 +120,12 @@ private struct SessionTile: View {
                     TagChipRow(names: tagNames, colorFor: { tagColor($0, in: context) })
                 }
             }
-            .frame(height: 24, alignment: .leading)
+            .frame(width: width, height: 24, alignment: .leading)
         }
         .padding(DesignTokens.Spacing.sm)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: width, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface))
+        .clipped()
         .task(id: session.id) {
             thumbnail = await ThumbnailProvider.thumbnail(for: session)
         }
