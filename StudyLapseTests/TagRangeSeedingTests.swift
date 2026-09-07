@@ -3,10 +3,12 @@ import XCTest
 @testable import StudyLapse
 @testable import StudyLapseCore
 
-/// BUILD.md Phase 4 criterion 3: ending a session seeds exactly one `TagRange`
-/// per finalized clip. Tagged `[device]`, but the seeding is pure model math
-/// with no device-specific behaviour (same situation as Phase 2's criteria
-/// 2/3/4) — exercised here in the `simulator` job.
+/// BUILD.md Phase 4 criterion 3: ending a session seeds exactly one untagged
+/// `TagRange` covering the whole session (changed 2026-09-07 from one range
+/// per finalized clip — see STATUS.md Deviations). Tagged `[device]`, but the
+/// seeding is pure model math with no device-specific behaviour (same
+/// situation as Phase 2's criteria 2/3/4) — exercised here in the
+/// `simulator` job.
 @MainActor
 final class TagRangeSeedingTests: XCTestCase {
     private var container: ModelContainer!
@@ -49,15 +51,16 @@ final class TagRangeSeedingTests: XCTestCase {
         }, total: total)
     }
 
-    // MARK: Criterion 3 — one range per finalized clip
+    // MARK: One range for the whole session (changed 2026-09-07 — see STATUS.md
+    // Deviations; originally one range per finalized clip)
 
-    func testSeedsExactlyOneRangePerFinalizedClip() {
+    func testSeedsExactlyOneRangeForTheWholeSession() {
         let session = makeSession(frameCounts: [40, 30, 20]) // 80s, 60s, 40s @2s
         TagRangeSeeding.ensureSeeded(for: session, in: context)
 
-        XCTAssertEqual(session.tagRanges.count, 3)
+        XCTAssertEqual(session.tagRanges.count, 1)
         XCTAssertTrue(tiles(session, total: 180))
-        XCTAssertEqual(sortedRanges(session).map(\.startStudySeconds), [0, 80, 140])
+        XCTAssertEqual(sortedRanges(session).map(\.startStudySeconds), [0])
         XCTAssertTrue(session.tagRanges.allSatisfy { $0.origin == TagRangeOrigin.segment.rawValue })
         XCTAssertTrue(session.tagRanges.allSatisfy { $0.tagNames.isEmpty })
     }
@@ -80,7 +83,7 @@ final class TagRangeSeedingTests: XCTestCase {
         let ended = try XCTUnwrap(coordinator.lastEndedSession)
         let finalized = ended.orderedFinalizedClips.count
         XCTAssertEqual(finalized, 2)
-        XCTAssertEqual(ended.tagRanges.count, finalized)
+        XCTAssertEqual(ended.tagRanges.count, 1, "one block for the whole session regardless of clip count")
         XCTAssertTrue(tiles(ended, total: 150))
 
         for clip in ended.clips {
@@ -95,14 +98,14 @@ final class TagRangeSeedingTests: XCTestCase {
         TagRangeSeeding.ensureSeeded(for: session, in: context)
         TagRangeSeeding.ensureSeeded(for: session, in: context)
         TagRangeSeeding.ensureSeeded(for: session, in: context)
-        XCTAssertEqual(session.tagRanges.count, 2)
+        XCTAssertEqual(session.tagRanges.count, 1)
         XCTAssertTrue(tiles(session, total: 140))
     }
 
     func testReseedsWhenAnUntouchedClipLandsLate() {
         let session = makeSession(frameCounts: [40, 30])
         TagRangeSeeding.ensureSeeded(for: session, in: context)
-        XCTAssertEqual(session.tagRanges.count, 2)
+        XCTAssertEqual(session.tagRanges.count, 1)
 
         // A rollover clip whose persist Task landed after end().
         let late = Clip(session: session, index: 2,
@@ -113,7 +116,7 @@ final class TagRangeSeedingTests: XCTestCase {
         StudyOffsets.recompute(for: session)
 
         TagRangeSeeding.ensureSeeded(for: session, in: context)
-        XCTAssertEqual(session.tagRanges.count, 3)
+        XCTAssertEqual(session.tagRanges.count, 1, "reseeded from scratch, still one range")
         XCTAssertTrue(tiles(session, total: 180))
     }
 
@@ -132,7 +135,7 @@ final class TagRangeSeedingTests: XCTestCase {
         StudyOffsets.recompute(for: session)
 
         TagRangeSeeding.ensureSeeded(for: session, in: context)
-        XCTAssertEqual(session.tagRanges.count, 3, "keeps the 2 user-touched ranges, appends 1 for the gap")
+        XCTAssertEqual(session.tagRanges.count, 2, "keeps the 1 user-touched range, appends 1 for the gap")
         XCTAssertTrue(tiles(session, total: 180))
         XCTAssertEqual(sortedRanges(session)[0].tagNames, ["calculus"])
         XCTAssertTrue(sortedRanges(session).last!.tagNames.isEmpty)

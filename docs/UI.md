@@ -74,9 +74,12 @@ Ending prompts for confirmation only if study time is under 5 minutes.
 
 Reached on End Session. Two modes over the same `TagRange` data (D-010).
 
-**Segment list (default).** One row per clip-boundary segment: start–end on the
-study axis, duration, and a tag field with autocomplete from the `Tag` table.
-Multi-select tags per row. Untagged rows are allowed and shown in secondary text.
+**Segment list (default).** One row per block on the study axis: start–end,
+duration, and a tag field with autocomplete from the `Tag` table. A session
+starts as a single untagged block covering the whole study time — not one
+block per clip/pause cycle (changed 2026-09-07; see STATUS.md Deviations) —
+and the user splits it into further blocks manually. Multi-select tags per
+row. Untagged rows are allowed and shown in secondary text.
 
 **Slider (refine).** A horizontal track representing total study time, with
 draggable range handles. Dragging a boundary resizes adjacent ranges live and

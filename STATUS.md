@@ -598,6 +598,52 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-07 (post-sign-off, developer request): **`TagRangeSeeding` now seeds
+  one untagged range covering the whole session, not one range per finalized
+  clip.** BUILD.md Phase 4 criterion 3 originally specified — and the
+  developer signed off — one `.segment` `TagRange` per clip. Testing the
+  same-day pause/resume crash fix (below) produced several short clips from
+  repeated pause/resume cycles, and the per-clip seeding fragmented the
+  tagging slider into many tiny, hard-to-read blocks bunched together —
+  not what the developer wants: tagging should start from a single block for
+  the whole video, split manually from there. `TagRangeSeeding.insertSeed`
+  now inserts one `TagRange(0, total)` instead of tiling per-clip durations
+  through `TagRangeMath.seed`; the "user-touched, tail uncovered" repair path
+  (a late-landing clip after the user already split/tagged) is unchanged — it
+  already appended a single gap-filling range, never one per clip.
+  `TagRangeMath.seed` itself is untouched (still a generic tile-these-
+  durations helper, still used by `TagRangeMathTests`' property tests) —
+  `TagRangeSeeding.insertSeed` no longer calls it at all, just constructs the
+  one `TagRange` directly. `TagRangeSeedingTests` updated to match (one
+  range, not N); docs/UI.md §4 and BUILD.md Phase 4 criterion 3 updated.
+- 2026-09-07, same session: **the idle/paused camera preview could go dark
+  and stay dark** after the pause-crash fix below converted
+  `CameraPreviewController.start`/`stop` to `async`. `RecordView` drove them
+  from four independent `Task { await ... }` spawns (`.onAppear`,
+  `.onDisappear`, two `.onChange`) that, once suspending, were no longer
+  guaranteed to reach the preview session's queue in the order their
+  triggers fired — a "start" could land after a later "stop" with nothing
+  left to retrigger it. Fixed by driving both from a single
+  `.task(id: previewShouldRun)`, which SwiftUI cancels/supersedes on change
+  instead of racing independent tasks. `RecordView.swift` only.
+- 2026-09-07: **pausing while recording could close the app outright.**
+  `CaptureController.startRecording`/`stopRecording` and
+  `CameraPreviewController.start`/`stop` called `AVCaptureSession
+  .startRunning()`/`stopRunning()` synchronously via `DispatchQueue.sync`
+  directly on the calling thread — the main actor, for every call site in
+  `SessionCoordinator`/`RecordView`. Tapping Pause blocked the main thread on
+  real camera hardware teardown, then immediately again on the idle preview
+  session starting up — two blocking hardware calls back to back, long
+  enough to trip iOS's watchdog and get the app killed, which read to the
+  user as the app just closing. Fixed by running the actual
+  `AVCaptureSession` start/stop work on a background queue and having
+  callers suspend on `await` instead of blocking their thread:
+  `CaptureController.startRecording` is now `async throws`;
+  `CameraPreviewController.start`/`stop` are now `async`.
+  `SessionCoordinator.startNewSession`/`.resume` are now `async throws` to
+  propagate this up. See docs/CAPTURE.md's "Session configuration" section
+  for the mechanism, and the entry above for a second bug this same
+  `async`-ification introduced (fixed the same day).
 - 2026-08-28, Phase 7 (post-sign-off, developer request): **camera preview
   now shows continuously, including while recording** — see D-028 in
   DECISIONS.md for the full reasoning. Resolves Q-005 (removed from

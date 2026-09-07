@@ -341,10 +341,14 @@ StudyLapseCore/Sources/StudyLapseCore/TagRangeMath.swift
       range
       — `TagRangeMathTests.testResizeNeverProducesDegenerateRangeOverRandomSequences`
       (50 trials × 400 ops, splits interleaved), green on CI run 33052241705
-- [x] `[device]` ending a session seeds exactly one range per finalized clip
+- [x] `[device]` ending a session seeds exactly one untagged range covering
+      the whole session, which the user splits into blocks manually
       — proven in CI by `TagRangeSeedingTests` (pure model math, no
       device-specific behaviour; same `[device]`-tag conflict as Phase 2's
-      criteria 2/3/4). Developer sign-off 2026-08-27.
+      criteria 2/3/4). Developer sign-off 2026-08-27; changed 2026-09-07 from
+      the original "one range per finalized clip" at the developer's request
+      — that fragmented the timeline into many tiny blocks on a session with
+      several pause/resume cycles. See STATUS.md Deviations.
 - [x] `[eyes-on]` dragging a slider handle on a 9-hour session moves the boundary
       smoothly and the adjacent durations update live
       — developer confirmed on device 2026-08-27.
