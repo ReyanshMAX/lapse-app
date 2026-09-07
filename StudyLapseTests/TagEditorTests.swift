@@ -47,32 +47,44 @@ final class TagEditorTests: XCTestCase {
     }
 
     func testInitSeedsAndMirrorsRows() {
+        // Seeding changed 2026-09-07 (STATUS.md Deviations): one untagged
+        // range for the whole session, not one per clip.
         let session = makeSession(frameCounts: [40, 30, 20]) // 80/60/40 → 180
         let editor = TagEditor(session: session, context: context)
-        XCTAssertEqual(editor.ranges.count, 3)
+        XCTAssertEqual(editor.ranges.count, 1)
         XCTAssertEqual(editor.totalStudySeconds, 180)
-        XCTAssertEqual(session.tagRanges.count, 3)
+        XCTAssertEqual(session.tagRanges.count, 1)
     }
 
     func testSplitMergeResizePersistAndKeepRowsTiling() {
         let session = makeSession(frameCounts: [60, 60]) // 120/120 → 240
         let editor = TagEditor(session: session, context: context)
 
-        editor.split(at: 30)
-        XCTAssertEqual(session.tagRanges.count, 3)
+        editor.split(at: 30) // one seeded range -> two
+        XCTAssertEqual(session.tagRanges.count, 2)
         XCTAssertTrue(rowsTile(session, total: 240))
 
         editor.previewResize(boundaryIndex: 0, to: 15)
         editor.commitResize()
         XCTAssertTrue(rowsTile(session, total: 240))
 
-        editor.merge(at: 0)
-        XCTAssertEqual(session.tagRanges.count, 2)
+        editor.merge(at: 0) // back down to one
+        XCTAssertEqual(session.tagRanges.count, 1)
         XCTAssertTrue(rowsTile(session, total: 240))
     }
 
     func testResizeMarksRowManualButLeavesUntouchedRowsSegment() {
-        let session = makeSession(frameCounts: [60, 60])
+        let session = makeSession(frameCounts: [60, 60]) // 240 total
+        // Two pre-existing `.segment` rows (as if the user had already split
+        // once) so resize's segment -> manual stamping on just the touched
+        // rows is visible; `TagEditor.init`'s `ensureSeeded` call is a no-op
+        // here since these already validly tile the total.
+        context.insert(TagRange(session: session, startStudySeconds: 0, endStudySeconds: 120,
+                                tagNames: [], origin: .segment))
+        context.insert(TagRange(session: session, startStudySeconds: 120, endStudySeconds: 240,
+                                tagNames: [], origin: .segment))
+        try? context.save()
+
         let editor = TagEditor(session: session, context: context)
         editor.previewResize(boundaryIndex: 0, to: 90)
         editor.commitResize()
