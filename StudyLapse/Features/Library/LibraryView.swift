@@ -9,7 +9,10 @@ struct LibraryView: View {
     @Query(sort: \Session.startedAt, order: .reverse) private var sessions: [Session]
     @Environment(\.modelContext) private var context
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: DesignTokens.Spacing.md)]
+    private let columns = [
+        GridItem(.flexible(), spacing: DesignTokens.Spacing.md),
+        GridItem(.flexible()),
+    ]
 
     private var finishedSessions: [Session] {
         sessions.filter { $0.status == .ended }
