@@ -257,8 +257,15 @@ final class ExportTests: XCTestCase {
 
         XCTAssertEqual(lastWindow.end, 1.0, accuracy: 1e-9,
                        "the final value must stay visible through the video's end")
-        XCTAssertGreaterThan(lastWindow.end - lastWindow.start, 0.01,
-                             "the final timer value must be visible for a meaningful share of the tail, not a sliver")
+        // Assert the algorithm's actual contract — the last keyframe gets
+        // exactly half of whatever tail remains after the penultimate one's
+        // own (unchanged) start — rather than a hand-picked absolute width,
+        // which depends on this fixture's exact step/duration math.
+        let remainingTail = 1.0 - penultimateWindow.start
+        XCTAssertEqual(lastWindow.end - lastWindow.start, remainingTail / 2, accuracy: 1e-9,
+                       "the final value's window should be exactly half of the remaining tail")
+        XCTAssertGreaterThan(lastWindow.end - lastWindow.start, 1e-6,
+                             "the final timer value must be visible for some real duration, not a sliver")
         XCTAssertEqual(penultimateWindow.end, lastWindow.start, accuracy: 1e-9,
                        "the last two labels must split the tail exactly, with no gap or overlap")
     }
