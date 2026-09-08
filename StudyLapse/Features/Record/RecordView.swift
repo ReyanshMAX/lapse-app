@@ -273,7 +273,8 @@ struct RecordView: View {
     /// recording/resume) and reconfigures the live idle preview via the
     /// `.task(id: previewIntent)` in `body` reacting to the change.
     private func flipCamera() {
-        cameraPositionRaw = (cameraPosition == .back ? .front : .back).rawValue
+        let next: AVCaptureDevice.Position = (cameraPosition == .back) ? .front : .back
+        cameraPositionRaw = next.rawValue
     }
 
     private func resume() {
