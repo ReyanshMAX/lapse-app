@@ -542,10 +542,9 @@ build; Phase 4's six and Phase 3's six on the same day.
 Known limitations (not bugs, revisit later):
 - ~~Every screen so far is functional-only — no design tokens, no polish.~~
   Addressed in Phase 8 (2026-08-28) — see *In progress* above.
-- The final timer value (session total) is visible for the last frame only;
-  the penultimate value fills the rest of the tail. Still open — Phase 8's
-  attempt to fix this ran into its own file-scope acceptance criterion
-  (OPEN_QUESTIONS.md Q-009); left for a small dedicated follow-up.
+- ~~The final timer value (session total) is visible for the last frame
+  only; the penultimate value fills the rest of the tail.~~ Fixed 2026-09-08
+  — see Deviations.
 - The export screen is reached via End Session → Tagging → Export (Phase 4) and
   as a re-export from the library session detail sheet (Phase 5).
   `ClipsDebugView` and its export link are gone.
@@ -598,6 +597,37 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-08 (general UX pass): **List mode gained a Split swipe action**
+  (`TaggingView.SegmentListView`, leading-edge swipe, mirroring the existing
+  trailing-edge Merge). docs/UI.md §4 previously scoped Split/Merge as
+  Slider-only controls, which made sense when every session started with one
+  block per clip (List was purely for tagging existing rows). Now that a
+  session starts as a single untagged block for the whole video (see the
+  `TagRangeSeeding` entry below), List — the default mode — had no way to
+  create a second block at all without discovering the Slider tab. Calls the
+  same `TagEditor.split(at:)` the Slider button already uses (midpoint of the
+  row); no new persistence or math. docs/UI.md §4 updated.
+- 2026-09-08 (general UX pass, developer request — "make the whole user
+  experience better," no further steer given): **fixed the burned-in export
+  timer's final-value sliver (OPEN_QUESTIONS.md Q-009, resolved).**
+  `TimerOverlay.timerKeyframes` (StudyLapseCore) always closes with
+  `(outputDuration, finalTotal)`, so the final keyframe's own normalized
+  start was always exactly `1.0` — `OverlayLayerBuilder.timerLayer`'s old
+  `min(keyframe.time / d, 0.999_999)` clamp gave it a fixed ~0.0001-of-duration
+  window regardless of video length (under one frame even for a long video),
+  and the *penultimate* label's own window ran uncapped to `1.0` too, so the
+  two overlapped at full opacity in that sliver. Fixed by computing every
+  keyframe's boundary as before (each value starts exactly when the timer
+  reaches it) except the very last one, which now splits whatever tail
+  remains evenly with the penultimate label instead of being squeezed to
+  nothing. `OverlayLayerBuilder.swift` only — no change to
+  `TimerOverlay.timerKeyframes` or the composition/duration math.
+  New regression test: `ExportTests.testFinalTimerValueGetsAFairShareOfTheTailNotASliver`
+  asserts the final window has non-trivial width and the last two windows
+  are exactly adjacent (no gap, no overlap). This was blocked at Phase 8 only
+  by that phase's own file-scope acceptance criterion (BUILD.md/Q-009), which
+  doesn't apply to this general pass. Not yet confirmed on device — the CI
+  test proves the layer tree's timing, not how it reads to the eye.
 - 2026-09-08 (developer request): **front/back camera toggle.** Filled the
   Phase 7 "no camera-flip control" gap logged below. `CameraPreferences`
   (new, `Capture/CameraPreferences.swift`) persists the chosen

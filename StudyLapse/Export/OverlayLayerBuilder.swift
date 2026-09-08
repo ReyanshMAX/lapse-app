@@ -90,6 +90,22 @@ enum OverlayLayerBuilder {
         }
 
         let d = max(outputDuration, 0.0001)
+        // Each keyframe's window is normally [its own start, the next one's
+        // start) — correct, since a value should appear exactly when the
+        // timer reaches it. `TimerOverlay.timerKeyframes` always closes with
+        // `(outputDuration, finalTotal)` though, so the *last* keyframe's own
+        // start is exactly 1.0 (Q-009 / STATUS.md Deviations): with no room
+        // left before the video's own end, its window collapsed to a sliver
+        // under one frame, and the second-to-last keyframe's window ran all
+        // the way to 1.0 too (uncapped), so the two briefly overlapped at
+        // full opacity. Fix: only the final boundary — between the last two
+        // keyframes — moves, splitting whatever tail remains evenly between
+        // them; every earlier keyframe keeps its true start unchanged.
+        var starts = keyframes.map { min($0.time / d, 1.0) }
+        if starts.count >= 2 {
+            let last = starts.count - 1
+            starts[last] = (starts[last - 1] + 1.0) / 2
+        }
         for (i, keyframe) in keyframes.enumerated() {
             let text = CATextLayer()
             text.string = keyframe.text
@@ -107,8 +123,8 @@ enum OverlayLayerBuilder {
                 text.shadowOffset = CGSize(width: 0, height: 2)
             }
 
-            let start = min(keyframe.time / d, 0.999_999)
-            let end = (i == keyframes.count - 1) ? 1.0 : min(keyframes[i + 1].time / d, 1.0)
+            let start = starts[i]
+            let end = (i == keyframes.count - 1) ? 1.0 : starts[i + 1]
 
             if keyframes.count == 1 {
                 text.opacity = 1

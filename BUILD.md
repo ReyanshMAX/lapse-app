@@ -605,10 +605,12 @@ views, it does not introduce new types or protocols.
       verification* for the walkthrough.
 
 Everything in Scope is done except the timer-overlay penultimate/final-value
-smoothing, which conflicts with this phase's own criterion 1 (the fix lives
+smoothing, which conflicted with this phase's own criterion 1 (the fix lives
 in `StudyLapse/Export/`) — left as a known limitation, logged as
 OPEN_QUESTIONS.md Q-009 rather than silently either skipped or done by
-breaking criterion 1.
+breaking criterion 1. Fixed 2026-09-08 in a small dedicated change outside
+this phase, per Q-009 option (a) — see STATUS.md Deviations; Q-009 removed
+(resolved).
 
 **Depends on:** Phases 5, 6, 7 (every screen it restyles must exist first)
 

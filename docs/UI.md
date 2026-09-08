@@ -78,8 +78,12 @@ Reached on End Session. Two modes over the same `TagRange` data (D-010).
 duration, and a tag field with autocomplete from the `Tag` table. A session
 starts as a single untagged block covering the whole study time — not one
 block per clip/pause cycle (changed 2026-09-07; see STATUS.md Deviations) —
-and the user splits it into further blocks manually. Multi-select tags per
-row. Untagged rows are allowed and shown in secondary text.
+and the user splits it into further blocks manually: swipe a row leading-edge
+for **Split** (halves it at its midpoint, added 2026-09-08 once List became
+the mode people land in with only one starting block — see STATUS.md
+Deviations) or trailing-edge for **Merge →** (folds it into the next row).
+Multi-select tags per row. Untagged rows are allowed and shown in secondary
+text.
 
 **Slider (refine).** A horizontal track representing total study time, with
 draggable range handles. Dragging a boundary resizes adjacent ranges live and

@@ -225,6 +225,44 @@ final class ExportTests: XCTestCase {
         XCTAssertTrue(strings.contains(totalText), "the timer ends on the session total \(totalText)")
     }
 
+    /// Q-009 / STATUS.md Deviations: `TimerOverlay.timerKeyframes` always
+    /// closes with `(outputDuration, finalTotal)`, so the final keyframe's
+    /// own normalized start is exactly 1.0 — before the fix this collapsed
+    /// its visible window to a fixed sliver under one video frame regardless
+    /// of length, and let it briefly overlap the penultimate label (whose own
+    /// window ran uncapped to 1.0 too).
+    func testFinalTimerValueGetsAFairShareOfTheTailNotASliver() async throws {
+        let session = try await makeSession(clipCount: 2, framesPerClip: 60)
+        let prepared = try await prepare(session, profile(session))
+
+        func timerBox(_ p: AVFoundationSessionExporter.Prepared) -> CALayer? {
+            p.overlay.parent.sublayers?.first {
+                $0 !== p.overlay.video && !textStrings(in: $0).isEmpty
+            }
+        }
+        let box = try XCTUnwrap(timerBox(prepared))
+        let textLayers = (box.sublayers ?? []).compactMap { $0 as? CATextLayer }
+        XCTAssertGreaterThanOrEqual(textLayers.count, 3, "fixture should produce several keyframes")
+
+        func visibleWindow(_ layer: CATextLayer) throws -> (start: Double, end: Double) {
+            let anim = try XCTUnwrap(layer.animation(forKey: "opacity") as? CAKeyframeAnimation)
+            let keyTimes = try XCTUnwrap(anim.keyTimes?.map(\.doubleValue))
+            let values = try XCTUnwrap(anim.values as? [NSNumber]).map(\.doubleValue)
+            let visibleIndex = try XCTUnwrap(values.firstIndex(of: 1))
+            return (keyTimes[visibleIndex], keyTimes[visibleIndex + 1])
+        }
+
+        let penultimateWindow = try visibleWindow(textLayers[textLayers.count - 2])
+        let lastWindow = try visibleWindow(textLayers[textLayers.count - 1])
+
+        XCTAssertEqual(lastWindow.end, 1.0, accuracy: 1e-9,
+                       "the final value must stay visible through the video's end")
+        XCTAssertGreaterThan(lastWindow.end - lastWindow.start, 0.01,
+                             "the final timer value must be visible for a meaningful share of the tail, not a sliver")
+        XCTAssertEqual(penultimateWindow.end, lastWindow.start, accuracy: 1e-9,
+                       "the last two labels must split the tail exactly, with no gap or overlap")
+    }
+
     func testOverlayCornerPlacesTheTimerBox() async throws {
         let session = try await makeSession(clipCount: 1, framesPerClip: 60)
 

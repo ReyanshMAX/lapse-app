@@ -104,6 +104,18 @@ private struct SegmentListView: View {
                     .padding(.vertical, DesignTokens.Spacing.xs)
                 }
                 .listRowBackground(Color.slSurface)
+                .swipeActions(edge: .leading) {
+                    // A session now starts as a single untagged block
+                    // covering the whole video (STATUS.md Deviations,
+                    // 2026-09-07) rather than one block per clip, so
+                    // splitting is no longer a rare refinement — it's the
+                    // primary way to make more than one block at all. Split
+                    // was previously Slider-only (docs/UI.md §4); this
+                    // mirrors that control here so the default List mode
+                    // doesn't strand the user without it.
+                    Button("Split") { editor.split(at: (range.start + range.end) / 2) }
+                        .tint(Color.slAccent)
+                }
                 .swipeActions(edge: .trailing) {
                     if index < editor.ranges.count - 1 {
                         Button("Merge →") { editor.merge(at: index) }
