@@ -2,12 +2,15 @@
 
 ## Overview
 
-Six screens. The app opens on Record if no session is open, or on the paused
-session if one is. Everything else hangs off a tab bar with Record and Library.
+A four-tab bar — Home, Record, Library, Stats (`RootTabView`, added
+2026-09-08 at the developer's request; see STATUS.md Deviations) — each tab
+owning its own navigation stack. The app opens on Home; Record opens on the
+idle camera preview if no session is open, or on the paused session if one
+is. Tagging and Export are reached by pushing/covering from Record and
+Library, not tabs of their own.
 
 ## Non-goals
 
-- No onboarding carousel — a single permission prime before first capture
 - No settings screen beyond the four settings listed below
 - No themes, no dark/light toggle (the app is dark-only)
 - No iPad-specific layout, no landscape support in v1
@@ -33,6 +36,23 @@ the Stats per-tag split bar, rather than each screen picking its own ad hoc
 palette.
 
 ## Screens
+
+### Home (tab)
+
+Added 2026-09-08 (developer request — see STATUS.md Deviations; the original
+"no onboarding carousel" non-goal above is superseded by the same request).
+Dashboard: a greeting, today's studied time (live while a session is open),
+a CTA button reflecting the live session state ("Start Studying" /
+"Resume Session" / "Go to Recording" — switches to the Record tab rather
+than duplicating its start/resume logic), the current streak if nonzero, and
+up to five recent finished sessions (tap through to the same session detail
+Library uses, or "See all" to the Library tab). Empty state ("Ready when you
+are") when there are no finished sessions yet.
+
+First launch shows a one-time welcome screen (`OnboardingView`, a
+`fullScreenCover` gated on an `hasSeenOnboarding` flag) ahead of any tab —
+three lines on what the app does before the camera-permission prime a new
+user would otherwise land on cold.
 
 ### 1. Record — idle
 

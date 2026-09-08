@@ -597,6 +597,50 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-08 (developer request — "make the UI nicer... make the app flow
+  intuitive and add... the necessary screens an app has to have like
+  homepage and easy controls"): **real tab-bar navigation, a Home dashboard,
+  and a first-launch onboarding screen.**
+  - `RootTabView` (new, `App/`) replaces the old single `NavigationStack`
+    rooted at `RecordView` (with Library/Stats reached via toolbar
+    `NavigationLink`s) with an actual SwiftUI `TabView`: Home, Record,
+    Library, Stats, each owning its own navigation stack. This is what
+    docs/UI.md's Overview already *said* ("a tab bar with Record and
+    Library") but the implementation never actually built — extended here to
+    all four destinations. `StudyLapseApp`'s scene now hosts `RootTabView`
+    instead of `RecordView` directly; the Live Activity resume deep link
+    moved into `RootTabView` since switching to the Record tab needs its own
+    tab-selection state.
+  - `HomeView` (new, `Features/Home/`): today's studied time (live while a
+    session is open, reusing `SessionCoordinator.studySeconds`), a CTA
+    button reading "Start Studying"/"Resume Session"/"Go to Recording" per
+    `coordinator.status` that switches to the Record tab rather than
+    duplicating its start/resume/permission-warning logic, the current
+    streak (`StudyLapseCore.Stats`, same call `StatsView` already makes) if
+    nonzero, and up to five recent finished sessions linking to the same
+    `SessionDetailView` Library uses. Empty state when there are no
+    finished sessions yet.
+  - `OnboardingView` (new, `Features/Onboarding/`): a one-time
+    `fullScreenCover` on first launch (`@AppStorage("hasSeenOnboarding")`),
+    three lines on what the app does, shown before any tab — including
+    before the camera-permission prime a new user previously landed on
+    cold. This directly supersedes docs/UI.md's old "no onboarding carousel"
+    non-goal, which docs/UI.md now notes.
+  - `RecordView`'s Pause/Resume/Start/End buttons are now full-width
+    (`actionButton` wraps `Text` in `.frame(maxWidth: .infinity)` instead of
+    sizing to the label) — bigger, more thumb-friendly tap targets, matching
+    the style Tagging's "Continue to Export" already used. Its
+    `.navigationTitle` changed from "StudyLapse" to "Record" now that Home
+    carries the app-identity branding and each tab reads its own name, like
+    Library/Stats already did.
+  - Not attempted in this pass: a redesigned session-end → tagging → export
+    flow beyond what already exists (End Session already hands off to a
+    `fullScreenCover`-presented `TaggingFlowView` directly) — didn't find a
+    concrete friction point worth restructuring blind, without device
+    testing, on top of everything else changed tonight.
+  - None of this touched `SessionCoordinator`, `CaptureController`, or any
+    tested model/logic code — pure `Features/`/`App/` SwiftUI + one new
+    small file each for Home and Onboarding. Not yet confirmed on device.
 - 2026-09-08 (general UX pass): **List mode gained a Split swipe action**
   (`TaggingView.SegmentListView`, leading-edge swipe, mirroring the existing
   trailing-edge Merge). docs/UI.md §4 previously scoped Split/Merge as

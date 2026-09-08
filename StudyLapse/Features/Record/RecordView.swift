@@ -109,7 +109,7 @@ struct RecordView: View {
                 }
                 .padding()
             }
-            .navigationTitle("StudyLapse")
+            .navigationTitle("Record")
             .screenBackground()
             .task(id: previewIntent) {
                 if previewIntent.shouldRun {
@@ -135,11 +135,8 @@ struct RecordView: View {
                 Button("Cancel", role: .cancel) { pendingStartWarnings = [] }
             }
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink { LibraryView() } label: {
-                        Label("Library", systemImage: "square.grid.2x2")
-                    }
-                }
+                // Library/Stats are reached via the tab bar (RootTabView,
+                // 2026-09-08) — no longer cross-linked from here.
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink("Debug Log") { DebugLogView() }
                 }
@@ -231,11 +228,19 @@ struct RecordView: View {
         }.joined(separator: " ")
     }
 
+    /// Full-width, not just intrinsically-sized — a bigger, thumb-friendly
+    /// tap target for the screen's primary actions (developer request,
+    /// 2026-09-08: "bigger/clearer buttons"), matching the style already
+    /// used for Tagging's "Continue to Export".
     private func actionButton(_ title: String, role: ButtonRole? = nil,
                               action: @escaping () -> Void) -> some View {
-        Button(title, role: role, action: action)
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+        Button(role: role, action: action) {
+            Text(title)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
     }
 
     /// docs/CAPTURE.md: low unplugged battery or low disk at session start is

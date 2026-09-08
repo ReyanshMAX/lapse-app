@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Library grid (docs/UI.md §7): finished sessions newest first, each a tile
 /// with a thumbnail, date, total study time, and tag chips. Tapping opens the
-/// session detail sheet. Stats hangs off the toolbar (docs/UI.md §8).
+/// session detail sheet. Stats is its own tab (`RootTabView`).
 struct LibraryView: View {
     @Query(sort: \Session.startedAt, order: .reverse) private var sessions: [Session]
     @Environment(\.modelContext) private var context
@@ -56,15 +56,8 @@ struct LibraryView: View {
         }
         .navigationTitle("Library")
         .screenBackground()
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                NavigationLink {
-                    StatsView()
-                } label: {
-                    Label("Stats", systemImage: "chart.bar.xaxis")
-                }
-            }
-        }
+        // Stats is reached via the tab bar (RootTabView, 2026-09-08) — no
+        // longer cross-linked from here.
     }
 }
 

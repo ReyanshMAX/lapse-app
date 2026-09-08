@@ -28,20 +28,14 @@ struct StudyLapseApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RecordView()
+            // RootTabView (2026-09-08 — see STATUS.md Deviations) replaces
+            // the old RecordView-rooted single NavigationStack with a
+            // Home/Record/Library/Stats tab bar; it owns the Live Activity
+            // "Resume" deep link itself since switching to the Record tab
+            // needs its own tab-selection state.
+            RootTabView()
                 .environment(coordinator)
                 .task { await coordinator.recoverOnLaunch() }
-                .onOpenURL { url in
-                    // Live Activity "Resume" deep link (docs/UI.md "Live
-                    // Activity": "a Resume button backed by an App Intent
-                    // that deep-links to Record — paused and ready"). No App
-                    // Groups available (Q-004) to hand state across the
-                    // process boundary any other way, so the URL itself is
-                    // the entire signal.
-                    guard url.host == "resume", coordinator.status == .paused else { return }
-                    DebugLog.write("Session", "resume deep link received")
-                    Task { try? await coordinator.resume() }
-                }
         }
         .modelContainer(container)
         .onChange(of: scenePhase) { _, phase in
