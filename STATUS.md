@@ -633,6 +633,27 @@ Not blocking, but constraining while there is no Mac:
   Debug Log screen for `[Capture]` lines around the time it should have
   appeared** — that will say definitively whether `startRunning()` even ran,
   and whether an interruption fired.
+
+  **Follow-up, same day, with a real Debug Log capture:** the developer sent
+  the log. Every `startRunning()` call reported `isRunning=true`
+  immediately, with zero `runtimeError`/`wasInterrupted` lines anywhere —
+  the interruption-handoff theory above is ruled out; the session genuinely
+  starts every time. The bug is in the SwiftUI/UIKit binding, not the
+  capture layer. Leading remaining theory: `CameraPreviewView.makeUIView`
+  binds `videoPreviewLayer.session` to the idle session *before*
+  `configureIfNeeded` has added its input (configuration happens
+  asynchronously, inside the `.task(id:)` that calls `start()`), and nothing
+  afterward ever touches the layer's `.session` again once the input lands —
+  `updateUIView` only re-assigns it when the session *object identity*
+  changes (never, for the idle session — it's the same instance for the
+  view's whole lifetime), and no `@State`/`@Environment` this view reads
+  changes as a side effect of the async camera setup completing. Fixed by
+  (1) having `updateUIView` reassign `.session` unconditionally instead of
+  only on identity change, and (2) bumping a new `previewRefreshToken`
+  `@State` right after `previewController.start()` returns, forcing one more
+  `body` re-evaluation (and so one more `updateUIView` call) at the moment
+  the session actually has its input and is running — not proven fixed on
+  device yet at the time of this commit.
 - 2026-09-07 (post-sign-off, developer request): **`TagRangeSeeding` now seeds
   one untagged range covering the whole session, not one range per finalized
   clip.** BUILD.md Phase 4 criterion 3 originally specified — and the

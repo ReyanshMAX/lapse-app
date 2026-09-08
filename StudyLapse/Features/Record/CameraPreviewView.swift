@@ -16,9 +16,17 @@ struct CameraPreviewView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
-        if uiView.videoPreviewLayer.session !== session {
-            uiView.videoPreviewLayer.session = session
-        }
+        // Reassign unconditionally, not just when the session identity
+        // changes: `makeUIView` binds the layer before the idle preview
+        // session has any input configured (it's configured asynchronously,
+        // after `.task(id:)` starts it), and `AVCaptureVideoPreviewLayer`'s
+        // connection can stay stale if it's never touched again after that —
+        // a known AVFoundation gotcha, and the leading suspect once the
+        // debug log ruled out the session itself failing to start (`isRunning`
+        // was true on every attempt, no interruption/runtime-error fired).
+        // This property set is cheap — the "don't recreate it" warning above
+        // is about the layer/view itself, not this assignment.
+        uiView.videoPreviewLayer.session = session
         applyMirroring(to: uiView.videoPreviewLayer)
     }
 

@@ -20,6 +20,9 @@ struct RecordView: View {
     @State private var accessibleStudyTime: String = ""
     @State private var lastAnnouncedSeconds: Double = -1000
     @AppStorage(CameraPreferences.positionKey) private var cameraPositionRaw = AVCaptureDevice.Position.back.rawValue
+    /// Bumped once the idle preview session finishes starting, purely to
+    /// force one more `body` re-render — see the `.task(id:)` comment below.
+    @State private var previewRefreshToken = 0
 
     private var showsPreview: Bool {
         authorizationStatus == .authorized
@@ -111,6 +114,13 @@ struct RecordView: View {
             .task(id: previewIntent) {
                 if previewIntent.shouldRun {
                     await previewController.start(position: previewIntent.position)
+                    // Force one more body re-render (and so one more
+                    // `CameraPreviewView.updateUIView`) after setup actually
+                    // completes — nothing else here changes `@State`/
+                    // `@Environment` once the preview session is up, so
+                    // without this the layer's session never gets touched
+                    // again after `makeUIView` bound it pre-configuration.
+                    previewRefreshToken &+= 1
                 } else {
                     await previewController.stop()
                 }
