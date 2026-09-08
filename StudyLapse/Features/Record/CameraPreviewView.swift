@@ -11,6 +11,7 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewUIView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        applyMirroring(to: view.videoPreviewLayer)
         return view
     }
 
@@ -18,6 +19,18 @@ struct CameraPreviewView: UIViewRepresentable {
         if uiView.videoPreviewLayer.session !== session {
             uiView.videoPreviewLayer.session = session
         }
+        applyMirroring(to: uiView.videoPreviewLayer)
+    }
+
+    /// The front camera previews mirrored (a selfie reads naturally that
+    /// way) — this only affects the live preview, not the recorded output.
+    private func applyMirroring(to layer: AVCaptureVideoPreviewLayer) {
+        guard let connection = layer.connection, connection.isVideoMirroringSupported else { return }
+        let isFront = session.inputs
+            .compactMap { ($0 as? AVCaptureDeviceInput)?.device.position }
+            .contains(.front)
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = isFront
     }
 
     final class PreviewUIView: UIView {

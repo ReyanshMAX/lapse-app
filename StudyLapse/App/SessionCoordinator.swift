@@ -60,7 +60,7 @@ final class SessionCoordinator {
     /// to drive `CaptureGuards` at its documented thresholds (BUILD.md Phase 7
     /// criterion 1) without touching `UIDevice`/`ProcessInfo`.
     init(context: ModelContext,
-         makeFrameSource: @escaping () -> FrameSource = { CameraFrameSource() },
+         makeFrameSource: @escaping () -> FrameSource = { CameraFrameSource(position: CameraPreferences.position) },
          makeGuardSignalSource: @escaping () -> GuardSignalSource = { DeviceGuardSignalSource() }) {
         self.context = context
         self.makeFrameSource = makeFrameSource

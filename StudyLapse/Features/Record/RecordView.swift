@@ -19,22 +19,37 @@ struct RecordView: View {
     @State private var previewController = CameraPreviewController()
     @State private var accessibleStudyTime: String = ""
     @State private var lastAnnouncedSeconds: Double = -1000
+    @AppStorage(CameraPreferences.positionKey) private var cameraPositionRaw = AVCaptureDevice.Position.back.rawValue
 
     private var showsPreview: Bool {
         authorizationStatus == .authorized
     }
 
-    /// Whether the standalone idle-preview session should be running right
-    /// now — never while recording (the real capture session supplies the
-    /// preview then) or backgrounded. A single `Equatable` value driving one
-    /// `.task(id:)` (see `body`): multiple independent `Task { await ... }`
-    /// calls from separate `.onAppear`/`.onChange` handlers raced each other
-    /// once `CameraPreviewController.start`/`stop` became `async` — Swift's
+    private var cameraPosition: AVCaptureDevice.Position {
+        AVCaptureDevice.Position(rawValue: cameraPositionRaw) ?? .back
+    }
+
+    /// Combines whether the standalone idle-preview session should be running
+    /// right now — never while recording (the real capture session supplies
+    /// the preview then) or backgrounded — with which camera it should use.
+    /// One `Equatable` value driving one `.task(id:)` (see `body`): multiple
+    /// independent `Task { await ... }` calls from separate
+    /// `.onAppear`/`.onChange` handlers raced each other once
+    /// `CameraPreviewController.start`/`stop` became `async` — Swift's
     /// scheduler could run a later "stop" before an earlier "start" landed on
     /// the session queue, leaving the preview off with nothing left to
-    /// retrigger it. `.task(id:)` cancels/supersedes instead of racing.
-    private var previewShouldRun: Bool {
-        showsPreview && scenePhase == .active && coordinator.status != .recording
+    /// retrigger it. `.task(id:)` cancels/supersedes instead of racing, and
+    /// folding the camera position in here means flipping the camera while
+    /// idle/paused reconfigures the live preview the same way.
+    private struct PreviewIntent: Equatable {
+        var shouldRun: Bool
+        var position: AVCaptureDevice.Position
+    }
+
+    private var previewIntent: PreviewIntent {
+        PreviewIntent(
+            shouldRun: showsPreview && scenePhase == .active && coordinator.status != .recording,
+            position: cameraPosition)
     }
 
     /// While recording, bind to the real capture session's own preview layer
@@ -56,6 +71,27 @@ struct RecordView: View {
                         // "Dimmed preview" (docs/UI.md screen 3).
                         Color.black.opacity(0.25).ignoresSafeArea()
                     }
+                    if coordinator.status != .recording {
+                        // Flip control (docs/UI.md screen 1) — only meaningful
+                        // while the idle preview is what's shown; while
+                        // recording the real capture session already owns a
+                        // fixed camera for the session.
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Button(action: flipCamera) {
+                                    Image(systemName: "arrow.triangle.2.circlepath.camera")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.slTextPrimary)
+                                        .padding(12)
+                                        .background(Circle().fill(Color.black.opacity(0.4)))
+                                }
+                                .padding()
+                                .accessibilityLabel("Switch camera")
+                            }
+                            Spacer()
+                        }
+                    }
                 }
 
                 VStack(spacing: 24) {
@@ -72,9 +108,9 @@ struct RecordView: View {
             }
             .navigationTitle("StudyLapse")
             .screenBackground()
-            .task(id: previewShouldRun) {
-                if previewShouldRun {
-                    await previewController.start()
+            .task(id: previewIntent) {
+                if previewIntent.shouldRun {
+                    await previewController.start(position: previewIntent.position)
                 } else {
                     await previewController.stop()
                 }
@@ -232,6 +268,14 @@ struct RecordView: View {
         }
     }
 
+    /// Persists the flipped choice (`CameraPreferences`, shared with
+    /// `SessionCoordinator`'s default `makeFrameSource` for the next
+    /// recording/resume) and reconfigures the live idle preview via the
+    /// `.task(id: previewIntent)` in `body` reacting to the change.
+    private func flipCamera() {
+        cameraPositionRaw = (cameraPosition == .back ? .front : .back).rawValue
+    }
+
     private func resume() {
         errorMessage = nil
         Task {
@@ -256,7 +300,7 @@ struct RecordView: View {
                     _ = await CameraPermission.requestAccess()
                     authorizationStatus = CameraPermission.status
                     DebugLog.write("Permission", "camera authorization now \(authorizationStatus.rawValue)")
-                    // `authorizationStatus` changing flips `previewShouldRun`,
+                    // `authorizationStatus` changing flips `previewIntent`,
                     // which the `.task(id:)` in `body` reacts to automatically.
                 }
             }

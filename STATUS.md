@@ -598,6 +598,41 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-08 (developer request): **front/back camera toggle.** Filled the
+  Phase 7 "no camera-flip control" gap logged below. `CameraPreferences`
+  (new, `Capture/CameraPreferences.swift`) persists the chosen
+  `AVCaptureDevice.Position` to `UserDefaults`; `SessionCoordinator`'s default
+  `makeFrameSource` reads it for the real capture session, and
+  `RecordView`'s `@AppStorage` binding feeds it into `previewIntent` so
+  flipping while idle/paused reconfigures the live preview immediately
+  (`CameraPreviewController.configureIfNeeded` already supported switching
+  positions — it just never had a caller that changed the argument). A
+  circular flip button overlays the preview's top-trailing corner, shown
+  whenever the preview is (not while recording, since the real capture
+  session already owns a fixed camera for that session).
+  `CameraPreviewView` mirrors the front camera's live preview
+  (`isVideoMirrored`) for a natural selfie feel — the recorded output itself
+  is not mirrored, matching stock Camera app behavior; revisit if that reads
+  wrong on device.
+- 2026-09-08: **idle/paused camera preview still not showing reliably** after
+  the `.task(id:)` race fix above. Root cause not confirmed — no device
+  console access, and DebugLog is in-memory only (lost on backgrounding/kill,
+  so nothing survived to inspect after the fact). Added instrumentation
+  rather than guess a fourth blind fix: `CameraPreviewController` now logs
+  every `configureIfNeeded`/`startRunning()` outcome and observes
+  `AVCaptureSession.runtimeErrorNotification`/`wasInterruptedNotification`/
+  `interruptionEndedNotification` (logging each, auto-retrying
+  `startRunning()` on interruption-end) — the leading theory is an
+  interrupted-handoff between this session and the real capture session,
+  which share physical camera hardware every pause/resume cycle. Also
+  changed `start()` to call `session.startRunning()` unconditionally instead
+  of gating on `session.isRunning` — that flag only reflects whether *this*
+  session object was told to start, not whether the hardware handoff
+  actually landed, so gating on it could mask exactly this failure mode.
+  **If the preview is still dark on the next sideload, check the in-app
+  Debug Log screen for `[Capture]` lines around the time it should have
+  appeared** — that will say definitively whether `startRunning()` even ran,
+  and whether an interruption fired.
 - 2026-09-07 (post-sign-off, developer request): **`TagRangeSeeding` now seeds
   one untagged range covering the whole session, not one range per finalized
   clip.** BUILD.md Phase 4 criterion 3 originally specified — and the
@@ -703,6 +738,7 @@ Not blocking, but constraining while there is no Mac:
   screen — out of scope for a phase whose bullet list only asks for the
   preview + framing guide. The preview and the real capture session both
   default to the back camera (`CameraFrameSource`'s existing default).
+  **Filled 2026-09-08 at the developer's request** — see the entry below.
 - 2026-08-28, Phase 7: **RecordView had no camera preview in any state before
   this phase**, despite docs/UI.md screens 1 and 3 specifying one since the
   spec was written. The Phase 2 comment "No preview while recording
