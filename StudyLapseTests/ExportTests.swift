@@ -379,7 +379,8 @@ final class ExportTests: XCTestCase {
         let emptyPlan = ExportPlan(
             sessionID: session.id, sessionStartedAt: session.startedAt, dayKey: session.dayKey,
             clips: [], captureIntervalSeconds: 3, outputFrameRate: 30, totalStudySeconds: 0,
-            speedMode: .multiplier(100), aspect: .portrait9x16, overlayStyle: .minimal,
+            speedMode: .multiplier(100), aspect: .portrait9x16, rotation: .none, isMirrored: false,
+            overlayStyle: .minimal,
             overlayCorner: .topRight, includeIntroCard: false, includeOutroCard: false,
             profileRevision: 0, tagNames: [])
         do {
