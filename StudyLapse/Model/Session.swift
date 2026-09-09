@@ -14,6 +14,14 @@ final class Session {
     var outputFrameRate: Int32      // frozen at session creation, default 30
     var statusRaw: String           // SessionStatus.rawValue
     var noteText: String?
+    /// Normalized `Project.name`, or nil for no project (developer request,
+    /// 2026-09-09 — "projects"). A plain string key into `ProjectCatalog`
+    /// rather than a `@Relationship`, mirroring how `TagRange.tagNames`
+    /// already references `Tag` — a session belongs to at most one project,
+    /// so this is simpler than the many-tags case, but the same reasoning
+    /// applies: no cascade/nullify rule to decide on. Lightweight-migratable
+    /// optional.
+    var projectName: String?
     /// Set when the user manually purges this session's source clips to reclaim
     /// storage (D-005, docs/UI.md §7). Non-nil means the `clips/` files are gone
     /// but the `Clip` rows remain (they carry `frameCount` / `studyOffsetStart`,
@@ -41,6 +49,7 @@ final class Session {
         self.outputFrameRate = outputFrameRate
         self.statusRaw = SessionStatus.recording.rawValue
         self.noteText = nil
+        self.projectName = nil
         self.sourcesPurgedAt = nil
     }
 

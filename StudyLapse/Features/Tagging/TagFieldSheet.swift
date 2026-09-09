@@ -71,17 +71,29 @@ struct TagFieldSheet: View {
                             .onSubmit(addDraft)
                         Button("Add", action: addDraft).disabled(!canAddDraft)
                     }
-                    ForEach(suggestions, id: \.name) { tag in
-                        Button {
-                            chosen.append(tag.displayName)
-                            draft = ""
-                        } label: {
-                            HStack {
-                                Text(tag.displayName)
-                                Spacer()
-                                Text("\(tag.useCount)").foregroundStyle(Color.slTextSecondary).font(.caption)
+                    // Quick-tap chips (developer request, 2026-09-09 —
+                    // "recent-tag quick-chips"): `suggestions` already
+                    // returns the most-used tags when `draft` is empty
+                    // (`TagCatalog.suggestions`), so this is the same data
+                    // the old vertical button-per-row list showed — laid out
+                    // as one scannable, tappable row instead of a column.
+                    if !suggestions.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: DesignTokens.Spacing.xs + 2) {
+                                ForEach(suggestions, id: \.name) { tag in
+                                    Button {
+                                        chosen.append(tag.displayName)
+                                        draft = ""
+                                    } label: {
+                                        TagChip(name: tag.displayName, color: Color(hex: tag.colorHex))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
+                        .listRowInsets(EdgeInsets())
+                        .padding(.horizontal, DesignTokens.Spacing.lg)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
                     }
                 }
             }

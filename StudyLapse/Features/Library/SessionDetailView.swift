@@ -6,13 +6,21 @@ import SwiftUI
 /// manual source purge (D-005), and delete (rows + directory together via
 /// `SessionStorage`).
 struct SessionDetailView: View {
-    let session: Session
+    /// `@Bindable`, not `let` — the Notes section below edits
+    /// `session.noteText` directly (same pattern `ExportView` already uses
+    /// for `@Bindable var profile: ExportProfile`), added 2026-09-09
+    /// (developer request, ideation list, "session notes"). `Session.noteText`
+    /// has been in the schema since Phase 0 (docs/DATA_MODEL.md) but nothing
+    /// wired a UI to it until now.
+    @Bindable var session: Session
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     @State private var confirmingDelete = false
     @State private var confirmingPurge = false
+    @State private var showingNewProjectAlert = false
+    @State private var newProjectDraft = ""
 
     private var finalizedClips: [Clip] { session.orderedFinalizedClips }
     private var exports: [ExportRecord] { session.exports.sorted { $0.createdAt > $1.createdAt } }
@@ -21,6 +29,30 @@ struct SessionDetailView: View {
     }
     private var tagNames: [String] {
         Array(Set(session.tagRanges.flatMap(\.tagNames))).sorted()
+    }
+
+    /// Empty-string-means-nil so a note that's typed then fully deleted
+    /// clears back to `nil` rather than persisting as `""`.
+    private var noteBinding: Binding<String> {
+        Binding(
+            get: { session.noteText ?? "" },
+            set: { session.noteText = $0.isEmpty ? nil : $0; try? context.save() })
+    }
+
+    private var currentProjectDisplayName: String {
+        session.projectName.flatMap { ProjectCatalog.existingProject(named: $0, in: context)?.displayName }
+            ?? "No Project"
+    }
+
+    private func setProject(_ displayName: String?) {
+        guard let displayName, !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            session.projectName = nil
+            try? context.save()
+            return
+        }
+        guard let project = ProjectCatalog.ensure(displayName, in: context) else { return }
+        session.projectName = project.name
+        ProjectCatalog.refreshUseCounts(in: context)
     }
 
     var body: some View {
@@ -33,6 +65,23 @@ struct SessionDetailView: View {
                 if !tagNames.isEmpty {
                     LabeledContent("Tags", value: tagNames.joined(separator: ", "))
                 }
+                LabeledContent("Project") {
+                    Menu {
+                        Button("No Project") { setProject(nil) }
+                        ForEach(ProjectCatalog.suggestions(in: context), id: \.name) { project in
+                            Button(project.displayName) { setProject(project.displayName) }
+                        }
+                        Button("New Project…") { showingNewProjectAlert = true }
+                    } label: {
+                        Text(currentProjectDisplayName)
+                    }
+                }
+            }
+
+            Section("Notes") {
+                TextEditor(text: noteBinding)
+                    .frame(minHeight: 80)
+                    .scrollContentBackground(.hidden)
             }
 
             Section("Tag ranges") {
@@ -107,6 +156,11 @@ struct SessionDetailView: View {
             Button("Purge sources", role: .destructive) {
                 SessionStorage.purgeSources(session, in: context)
             }
+        }
+        .alert("New Project", isPresented: $showingNewProjectAlert) {
+            TextField("Project name", text: $newProjectDraft)
+            Button("Create") { setProject(newProjectDraft); newProjectDraft = "" }
+            Button("Cancel", role: .cancel) { newProjectDraft = "" }
         }
     }
 

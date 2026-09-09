@@ -133,7 +133,9 @@ final class AVFoundationSessionExporter: SessionExporter {
         layerInstruction.setTransform(
             Self.cropTransform(naturalSize: sourceNaturalSize,
                                preferredTransform: sourceTransform,
-                               renderSize: renderSize),
+                               renderSize: renderSize,
+                               rotation: plan.rotation,
+                               isMirrored: plan.isMirrored),
             at: .zero)
         instruction.layerInstructions = [layerInstruction]
         videoComposition.instructions = [instruction] as [any AVVideoCompositionInstructionProtocol]
@@ -304,24 +306,75 @@ final class AVFoundationSessionExporter: SessionExporter {
     }
 
     /// Fill the render rect by scaling the source up (centre-crop), never
-    /// stretching. `original` resolves to the identity transform.
+    /// stretching. `original` resolves to the identity transform. `rotation`/
+    /// `isMirrored` (developer request, 2026-09-09) are applied to the
+    /// already-upright (`preferredTransform`-corrected) frame *before* this
+    /// crop/scale runs — the overlay is positioned in render space afterwards
+    /// (`OverlayLayerBuilder`), so rotating here, rather than leaving it to
+    /// some later stage, is what makes the overlay's corner track the
+    /// displayed orientation instead of staying stuck relative to whatever
+    /// orientation the camera happened to record in.
     static func cropTransform(naturalSize: CGSize,
                               preferredTransform: CGAffineTransform,
-                              renderSize: CGSize) -> CGAffineTransform {
+                              renderSize: CGSize,
+                              rotation: VideoRotation = .none,
+                              isMirrored: Bool = false) -> CGAffineTransform {
         let oriented = naturalSize.applying(preferredTransform)
         let srcW = abs(oriented.width)
         let srcH = abs(oriented.height)
         guard srcW > 0, srcH > 0 else { return preferredTransform }
 
-        let scale = max(renderSize.width / srcW, renderSize.height / srcH)
-        let scaledW = srcW * scale
-        let scaledH = srcH * scale
+        let adjustment = orientationAdjustment(contentSize: CGSize(width: srcW, height: srcH),
+                                               rotation: rotation, isMirrored: isMirrored)
+        let adjustedTransform = preferredTransform.concatenating(adjustment)
+        let quarterTurned = rotation == .quarter || rotation == .threeQuarter
+        let adjustedW = quarterTurned ? srcH : srcW
+        let adjustedH = quarterTurned ? srcW : srcH
+
+        let scale = max(renderSize.width / adjustedW, renderSize.height / adjustedH)
+        let scaledW = adjustedW * scale
+        let scaledH = adjustedH * scale
         let tx = (renderSize.width - scaledW) / 2
         let ty = (renderSize.height - scaledH) / 2
 
-        return preferredTransform
+        return adjustedTransform
             .concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(translationX: tx, y: ty))
+    }
+
+    /// Rotates/mirrors an already-upright, origin-anchored `contentSize` rect
+    /// (0…w, 0…h) further, re-anchoring the result at the origin again
+    /// afterwards — exactly what `preferredTransform` itself already does for
+    /// the sensor's native orientation. A bare `CGAffineTransform(rotationAngle:)`
+    /// rotates about the origin with no compensating translation, which would
+    /// leave the content sitting in the wrong quadrant (e.g. a 90° turn maps
+    /// (0,0)-(w,h) to (-h,0)-(0,w)) and silently break `cropTransform`'s crop
+    /// math above, which assumes a plain 0…w, 0…h rect. Mirroring is applied
+    /// before rotation (flip across the content's own width, then rotate what
+    /// results) — an arbitrary but fixed order, since nothing else specifies
+    /// one; every one of the 8 rotation/mirror combinations is still reachable
+    /// by picking the right pair of controls.
+    static func orientationAdjustment(contentSize: CGSize, rotation: VideoRotation,
+                                      isMirrored: Bool) -> CGAffineTransform {
+        var t = CGAffineTransform.identity
+        if isMirrored {
+            t = t.concatenating(CGAffineTransform(scaleX: -1, y: 1))
+                 .concatenating(CGAffineTransform(translationX: contentSize.width, y: 0))
+        }
+        switch rotation {
+        case .none:
+            break
+        case .quarter:
+            t = t.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                 .concatenating(CGAffineTransform(translationX: contentSize.height, y: 0))
+        case .half:
+            t = t.concatenating(CGAffineTransform(rotationAngle: .pi))
+                 .concatenating(CGAffineTransform(translationX: contentSize.width, y: contentSize.height))
+        case .threeQuarter:
+            t = t.concatenating(CGAffineTransform(rotationAngle: -(.pi / 2)))
+                 .concatenating(CGAffineTransform(translationX: 0, y: contentSize.width))
+        }
+        return t
     }
 
     private static func introText(_ plan: ExportPlan) -> String {

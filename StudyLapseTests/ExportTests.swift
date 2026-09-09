@@ -205,6 +205,77 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(original.ty, 0, accuracy: 1e-6)
     }
 
+    /// The bounding box of an already-upright `contentSize` rect, after
+    /// `orientationAdjustment`, must stay anchored at the origin (min corner
+    /// exactly (0,0)) — `cropTransform`'s crop/scale math assumes a plain
+    /// 0…w, 0…h rect, so a rotation that left it in the wrong quadrant would
+    /// silently corrupt the centre-crop for every rotated export.
+    private func boundingBox(of transform: CGAffineTransform, size: CGSize) -> CGRect {
+        let corners = [CGPoint(x: 0, y: 0), CGPoint(x: size.width, y: 0),
+                       CGPoint(x: size.width, y: size.height), CGPoint(x: 0, y: size.height)]
+            .map { $0.applying(transform) }
+        let xs = corners.map(\.x), ys = corners.map(\.y)
+        return CGRect(x: xs.min()!, y: ys.min()!,
+                     width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+    }
+
+    func testOrientationAdjustmentStaysOriginAnchoredForEveryRotation() {
+        let size = CGSize(width: 1080, height: 1920)
+        for rotation in VideoRotation.allCases {
+            for mirrored in [false, true] {
+                let transform = AVFoundationSessionExporter.orientationAdjustment(
+                    contentSize: size, rotation: rotation, isMirrored: mirrored)
+                let box = boundingBox(of: transform, size: size)
+                XCTAssertEqual(box.origin.x, 0, accuracy: 1e-6, "rotation \(rotation), mirrored \(mirrored)")
+                XCTAssertEqual(box.origin.y, 0, accuracy: 1e-6, "rotation \(rotation), mirrored \(mirrored)")
+
+                let quarterTurned = rotation == .quarter || rotation == .threeQuarter
+                let expected = quarterTurned
+                    ? CGSize(width: size.height, height: size.width) : size
+                XCTAssertEqual(box.width, expected.width, accuracy: 1e-6, "rotation \(rotation)")
+                XCTAssertEqual(box.height, expected.height, accuracy: 1e-6, "rotation \(rotation)")
+            }
+        }
+    }
+
+    func testQuarterTurnRotationSwapsRenderDimensionsInTheCropScale() {
+        // A 1920x1080 source rotated 90° is already 1080x1920 before the
+        // crop — exactly the render size below — so fitting it needs a
+        // uniform scale of 1, unlike the un-rotated case, which needs the
+        // same 1920/1080 portrait-crop scale `testCentreCropTransformFillsWithoutStretching`
+        // asserts. A 90° turn's matrix has a == d == 0 (cos 90° == 0), so the
+        // scale shows up as the row length (a, b) rather than as `a` alone.
+        let source = CGSize(width: 1920, height: 1080)
+        let renderSize = CGSize(width: 1080, height: 1920)
+
+        let rotated = AVFoundationSessionExporter.cropTransform(
+            naturalSize: source, preferredTransform: .identity, renderSize: renderSize,
+            rotation: .quarter)
+        let rotatedScale = (rotated.a * rotated.a + rotated.b * rotated.b).squareRoot()
+        XCTAssertEqual(rotatedScale, 1.0, accuracy: 1e-6)
+
+        let unrotated = AVFoundationSessionExporter.cropTransform(
+            naturalSize: source, preferredTransform: .identity, renderSize: renderSize)
+        let unrotatedScale = (unrotated.a * unrotated.a + unrotated.b * unrotated.b).squareRoot()
+        XCTAssertEqual(unrotatedScale, 1920.0 / 1080.0, accuracy: 1e-6)
+    }
+
+    func testMirrorFlipsHorizontally() {
+        let source = CGSize(width: 1920, height: 1080)
+        let renderSize = CGSize(width: 1920, height: 1080)
+
+        let plain = AVFoundationSessionExporter.cropTransform(
+            naturalSize: source, preferredTransform: .identity, renderSize: renderSize)
+        let mirrored = AVFoundationSessionExporter.cropTransform(
+            naturalSize: source, preferredTransform: .identity, renderSize: renderSize,
+            isMirrored: true)
+
+        // A pure horizontal mirror negates the x-scale term (a) and leaves
+        // the frame the same size and position otherwise.
+        XCTAssertEqual(mirrored.a, -plain.a, accuracy: 1e-6)
+        XCTAssertEqual(mirrored.d, plain.d, accuracy: 1e-6)
+    }
+
     // MARK: Criterion 5 — the overlay layer tree
 
     func testOverlayTreeHasAKeyframeStackThatChangesOverTime() async throws {

@@ -44,10 +44,14 @@ Added 2026-09-08 (developer request — see STATUS.md Deviations; the original
 Dashboard: a greeting, today's studied time (live while a session is open),
 a CTA button reflecting the live session state ("Start Studying" /
 "Resume Session" / "Go to Recording" — switches to the Record tab rather
-than duplicating its start/resume logic), the current streak if nonzero, and
-up to five recent finished sessions (tap through to the same session detail
-Library uses, or "See all" to the Library tab). Empty state ("Ready when you
-are") when there are no finished sessions yet.
+than duplicating its start/resume logic), a daily study-goal card (added
+2026-09-09 — see STATUS.md Deviations: tap to set a target in 30-minute
+steps via a sheet, or to edit/remove it once set; shows a progress bar and
+time remaining against today's studied time when a goal is set, otherwise
+"Set a daily study goal"), the current streak if nonzero, and up to five
+recent finished sessions (tap through to the same session detail Library
+uses, or "See all" to the Library tab). Empty state ("Ready when you are")
+when there are no finished sessions yet.
 
 First launch shows a one-time welcome screen (`OnboardingView`, a
 `fullScreenCover` gated on an `hasSeenOnboarding` flag) ahead of any tab —
@@ -92,7 +96,13 @@ Ending prompts for confirmation only if study time is under 5 minutes.
 
 ### 4. Tagging
 
-Reached on End Session. Two modes over the same `TagRange` data (D-010).
+Reached on End Session. A Project picker sits above the mode toggle (added
+2026-09-09 — see STATUS.md Deviations): a session-level label, distinct from
+per-range tags, so it doesn't belong inside the tag field sheet. A menu of
+"No Project", existing projects, and "New Project…" (a plain text-entry
+alert); also editable afterwards from the Library session detail sheet.
+
+Two modes over the same `TagRange` data (D-010).
 
 **Segment list (default).** One row per block on the study axis: start–end,
 duration, and a tag field with autocomplete from the `Tag` table. A session
@@ -103,7 +113,9 @@ for **Split** (halves it at its midpoint, added 2026-09-08 once List became
 the mode people land in with only one starting block — see STATUS.md
 Deviations) or trailing-edge for **Merge →** (folds it into the next row).
 Multi-select tags per row. Untagged rows are allowed and shown in secondary
-text.
+text. The tag field sheet shows the most-used tags as a row of tappable
+chips above the free-text field (added 2026-09-09 — see STATUS.md
+Deviations) so re-tagging with a subject you already use is one tap.
 
 **Slider (refine).** A horizontal track representing total study time, with
 draggable range handles. Dragging a boundary resizes adjacent ranges live and
@@ -123,10 +135,13 @@ tiling invariant. Every mutation runs through it.
 ### 5. Export
 
 Preview thumbnail, then controls: speed (multiplier stepper or a "fit to" field
-with 15/30/60s presets), aspect (three-way picker), overlay style and corner,
-intro/outro toggles. Live estimated output duration updates as controls change,
-and shows the clamped value when the minimum-speed floor binds
-(docs/DATA_MODEL.md).
+with 15/30/60s presets), aspect (three-way picker), rotate (0°/90°/180°/270°)
+and a horizontal-flip toggle (added 2026-09-09 — see STATUS.md Deviations;
+applied before the crop and the timer overlay, so the overlay's corner always
+tracks the *displayed* orientation, not the recorded one), overlay style and
+corner, intro/outro toggles. Live estimated output duration updates as
+controls change, and shows the clamped value when the minimum-speed floor
+binds (docs/DATA_MODEL.md).
 
 Render button → progress with cancel → result screen with Save to Photos, Share,
 and Add Voiceover.
@@ -152,13 +167,19 @@ succeeds.
 ### 7. Library
 
 Grid of sessions, newest first: thumbnail, date, total study time, tag chips. Tap
-opens a detail sheet with the clip list, exports, re-export, and delete. Delete
-removes the database rows and the session directory together.
+opens a detail sheet with a freeform notes field and a project picker (both
+added 2026-09-09 — see STATUS.md Deviations), the clip list, exports,
+re-export, and delete. Delete removes the database rows and the session
+directory together.
 
 ### 8. Stats
 
-Total hours, current streak, per-tag time split as a horizontal bar, and a
-calendar heatmap by `dayKey`. Untagged time appears explicitly as its own band.
+Total hours, current streak, a Recap section (added 2026-09-09 — see
+STATUS.md Deviations: study time, session count, top tag, and longest
+session over the trailing 7 and 30 days), a By-project total per assigned
+project (same date, shown only once at least one session has a project),
+per-tag time split as a horizontal bar, and a calendar heatmap by `dayKey`.
+Untagged time appears explicitly as its own band.
 
 ## Empty states
 

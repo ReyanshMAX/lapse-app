@@ -123,6 +123,36 @@ Stages, in order:
 Crop is centre-weighted with no user-adjustable framing in v1. The framing guide
 at capture (docs/UI.md) exists so the centre crop is usable.
 
+## Orientation (rotate / flip)
+
+Added 2026-09-09 (developer request — "otherwise the clock's position is
+stuck relative to the video's recorded orientation"). `ExportProfile` carries
+`rotationDegreesRaw` (`VideoRotation`: 0/90/180/270, quarter turns clockwise)
+and `isMirrored` (horizontal flip), applied in
+`AVFoundationSessionExporter.cropTransform` to the already-upright
+(`preferredTransform`-corrected) source frame, **before** the centre-crop
+scale runs and before the render size is fixed. Order: mirror, then rotate —
+arbitrary but fixed, since nothing else specifies one; every one of the 8
+combined orientations is still reachable by picking the right pair of
+controls.
+
+This is what actually fixes the reported bug: the timer overlay
+(`OverlayLayerBuilder`) is positioned in output-render space, computed
+*after* `cropTransform` runs, using the same fixed `renderSize` regardless of
+how the source was recorded. Rotating/flipping the video ahead of that stage,
+rather than adding a separate later correction, means the overlay's chosen
+corner (`overlayCorner`) always lands where the picker says relative to the
+*displayed* video, not the sensor's native orientation.
+
+`orientationAdjustment(contentSize:rotation:isMirrored:)` does the actual
+transform math and re-anchors the result at the origin exactly like
+`preferredTransform` already does for the sensor's native orientation — a
+bare `CGAffineTransform(rotationAngle:)` has no compensating translation and
+would leave the content in the wrong quadrant, corrupting the crop math below
+it, which assumes a plain `0…w, 0…h` rect. `cropTransform` also swaps which
+of `srcW`/`srcH` is fit against `renderSize.width`/`.height` for a 90°/270°
+turn, since the displayed aspect ratio itself changes.
+
 ## Overlay layer tree
 
 ```

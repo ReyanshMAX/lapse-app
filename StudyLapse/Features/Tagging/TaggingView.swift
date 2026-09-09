@@ -12,6 +12,11 @@ struct TaggingView: View {
     @State private var editor: TagEditor?
     @State private var mode: Mode = .list
     @State private var editing: EditingTarget?
+    /// Project assignment (developer request, 2026-09-09 — "projects"): a
+    /// session-level label, unlike per-range tags, so it lives here at the
+    /// top of the screen rather than in `TagFieldSheet`.
+    @State private var showingNewProjectAlert = false
+    @State private var newProjectDraft = ""
 
     private enum Mode: String, CaseIterable { case list = "List", slider = "Slider" }
     private struct EditingTarget: Identifiable { let id = UUID(); let index: Int }
@@ -38,11 +43,56 @@ struct TaggingView: View {
                 )
             }
         }
+        .alert("New Project", isPresented: $showingNewProjectAlert) {
+            TextField("Project name", text: $newProjectDraft)
+            Button("Create") { setProject(newProjectDraft); newProjectDraft = "" }
+            Button("Cancel", role: .cancel) { newProjectDraft = "" }
+        }
+    }
+
+    private var currentProjectDisplayName: String {
+        session.projectName.flatMap { ProjectCatalog.existingProject(named: $0, in: context)?.displayName }
+            ?? "No Project"
+    }
+
+    private func setProject(_ displayName: String?) {
+        guard let displayName, !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            session.projectName = nil
+            try? context.save()
+            return
+        }
+        guard let project = ProjectCatalog.ensure(displayName, in: context) else { return }
+        session.projectName = project.name
+        ProjectCatalog.refreshUseCounts(in: context)
+    }
+
+    @ViewBuilder
+    private var projectRow: some View {
+        HStack {
+            Text("Project").foregroundStyle(Color.slTextSecondary)
+            Spacer()
+            Menu {
+                Button("No Project") { setProject(nil) }
+                ForEach(ProjectCatalog.suggestions(in: context), id: \.name) { project in
+                    Button(project.displayName) { setProject(project.displayName) }
+                }
+                Button("New Project…") { showingNewProjectAlert = true }
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text(currentProjectDisplayName)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, DesignTokens.Spacing.sm)
     }
 
     @ViewBuilder
     private func content(_ editor: TagEditor) -> some View {
         VStack(spacing: 0) {
+            projectRow
             Picker("Mode", selection: $mode) {
                 ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }

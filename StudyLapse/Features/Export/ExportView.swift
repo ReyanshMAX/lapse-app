@@ -93,6 +93,17 @@ private struct ExportControls: View {
                         Text(preset.label).tag(preset.rawValue)
                     }
                 }
+                // Rotate/flip the source before the crop and the timer
+                // overlay are computed (developer request, 2026-09-09) — the
+                // overlay corner is picked below in this same, already-
+                // rotated space, so it always lands where the picker says
+                // regardless of how the video was recorded.
+                Picker("Rotate", selection: $profile.rotationDegreesRaw) {
+                    ForEach(VideoRotation.allCases, id: \.rawValue) { rotation in
+                        Text(rotation.label).tag(rotation.rawValue)
+                    }
+                }
+                Toggle("Flip horizontally", isOn: $profile.isMirrored)
                 Picker("Timer style", selection: $profile.overlayStyleRaw) {
                     ForEach(OverlayStyle.allCases, id: \.rawValue) { style in
                         Text(style.label).tag(style.rawValue)

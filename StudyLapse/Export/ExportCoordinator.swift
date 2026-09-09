@@ -144,6 +144,8 @@ final class ExportCoordinator {
             totalStudySeconds: total,
             speedMode: speedMode(profile),
             aspect: AspectPreset(raw: profile.aspectRaw),
+            rotation: VideoRotation(raw: profile.rotationDegreesRaw),
+            isMirrored: profile.isMirrored,
             overlayStyle: OverlayStyle(raw: profile.overlayStyleRaw),
             overlayCorner: OverlayCorner(raw: profile.overlayCornerRaw),
             includeIntroCard: profile.includeIntroCard,

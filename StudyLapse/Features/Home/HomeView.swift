@@ -12,6 +12,16 @@ struct HomeView: View {
     @Environment(SessionCoordinator.self) private var coordinator
     @Query(sort: \Session.startedAt, order: .reverse) private var sessions: [Session]
     @Binding var selection: AppTab
+    /// A daily study-time target the user can set from this screen (developer
+    /// request, 2026-09-09 — "study goals"). Plain `UserDefaults`, like
+    /// `dayCutoffHour`/`cameraPositionRawValue` already are, rather than a
+    /// SwiftData row: it's a single-user local preference, not something any
+    /// session/stat references. `0` means "no goal set" — there's no settings
+    /// screen in this app yet to put a dedicated control on (docs/UI.md's
+    /// four settings have never had UI built for them either), so the goal is
+    /// set and cleared from right here via `goalEditorPresented`.
+    @AppStorage("dailyStudyGoalSeconds") private var dailyGoalSeconds: Double = 0
+    @State private var goalEditorPresented = false
 
     private var finishedSessions: [Session] { sessions.filter { $0.status == .ended } }
     private var recentSessions: [Session] { Array(finishedSessions.prefix(5)) }
@@ -51,6 +61,7 @@ struct HomeView: View {
                     .foregroundStyle(Color.slTextPrimary)
 
                 statusCard
+                goalCard
 
                 if streak > 0 {
                     streakRow
@@ -70,6 +81,55 @@ struct HomeView: View {
         }
         .navigationTitle("StudyLapse")
         .screenBackground()
+        .sheet(isPresented: $goalEditorPresented) {
+            GoalEditorSheet(goalSeconds: $dailyGoalSeconds)
+        }
+    }
+
+    // MARK: Daily goal
+
+    @ViewBuilder
+    private var goalCard: some View {
+        Button { goalEditorPresented = true } label: {
+            if dailyGoalSeconds > 0 {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    HStack {
+                        Text("Daily goal")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.slTextSecondary)
+                        Spacer()
+                        Text(Formatters.studyTime(min(todaysStudySeconds, dailyGoalSeconds))
+                             + " / " + Formatters.studyTime(dailyGoalSeconds))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(Color.slTextSecondary)
+                    }
+                    ProgressView(value: min(todaysStudySeconds / dailyGoalSeconds, 1))
+                        .tint(Color.slAccent)
+                    Text(goalMet ? "Goal reached today" : "\(Formatters.studyTime(dailyGoalSeconds - todaysStudySeconds)) to go")
+                        .font(.caption)
+                        .foregroundStyle(goalMet ? Color.slAccent : Color.slTextSecondary)
+                }
+            } else {
+                HStack {
+                    Image(systemName: "target")
+                        .foregroundStyle(Color.slAccent)
+                    Text("Set a daily study goal")
+                        .foregroundStyle(Color.slTextPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Color.slTextSecondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface))
+    }
+
+    private var goalMet: Bool {
+        dailyGoalSeconds > 0 && todaysStudySeconds >= dailyGoalSeconds
     }
 
     private var greeting: String {
@@ -174,6 +234,58 @@ struct HomeView: View {
                     .background(RoundedRectangle(cornerRadius: DesignTokens.cornerRadius).fill(Color.slSurface))
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// Picks (or clears) `dailyGoalSeconds` in half-hour steps up to 8 hours —
+/// plenty of headroom for a daily target without a free-text field that could
+/// end up storing something nonsensical (docs/UI.md has no precedent settings
+/// screen to match, so this keeps the same "Stepper with a sane range" style
+/// Export's speed multiplier already uses).
+private struct GoalEditorSheet: View {
+    @Binding var goalSeconds: Double
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftMinutes: Double
+
+    init(goalSeconds: Binding<Double>) {
+        _goalSeconds = goalSeconds
+        _draftMinutes = State(initialValue: goalSeconds.wrappedValue > 0 ? goalSeconds.wrappedValue / 60 : 60)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Stepper(value: $draftMinutes, in: 30...480, step: 30) {
+                        Text(Formatters.studyTime(draftMinutes * 60))
+                    }
+                } footer: {
+                    Text("Shown on Home as progress toward today's study time.")
+                }
+                if goalSeconds > 0 {
+                    Section {
+                        Button("Remove goal", role: .destructive) {
+                            goalSeconds = 0
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            .tokenizedListStyle()
+            .navigationTitle("Daily Goal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        goalSeconds = draftMinutes * 60
+                        dismiss()
+                    }
+                }
             }
         }
     }

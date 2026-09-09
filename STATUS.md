@@ -597,6 +597,84 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-09 (developer request — ideation list, "multiple study projects as
+  first-class objects"): **a new `Project` entity, assignable to a session
+  from Tagging or the Library detail sheet, with per-project totals on
+  Stats.** `Session.projectName` references it the same way
+  `TagRange.tagNames` already references `Tag` — a plain normalized-name
+  string, not a `@Relationship` (a session has at most one project, and this
+  avoids a cascade/nullify-rule decision a relationship would need).
+  `ProjectCatalog` (new, `Model/ProjectCatalog.swift`) mirrors `TagCatalog`:
+  `ensure`/`suggestions`/`existingProject`/`refreshUseCounts`, reusing
+  `TagCatalog.palette` for color assignment rather than a second palette.
+  `Project.self` added to `ModelContainerFactory.schema`. UI: a Project
+  picker (`Menu`: "No Project" / existing projects / "New Project…" via a
+  text-entry `.alert`) added to the top of `TaggingView` and to
+  `SessionDetailView`'s Session section; `StatsView` gained a "By project"
+  section (plain per-project sum — a session has at most one project, unlike
+  the many-tags case `Stats.perTagSplit` handles, so no new
+  `StudyLapseCore` code was needed). New tests in `ProjectCatalogTests.swift`
+  mirror `TagCatalogTests.swift`. docs/DATA_MODEL.md and docs/UI.md §4/§7/§8
+  updated. Not yet confirmed on device.
+- 2026-09-09 (developer request — ideation list, "weekly/monthly recap"):
+  **Stats gained a Recap section**: study time, session count, top tag, and
+  longest session over the trailing 7 and 30 days (a trailing window ending
+  today, not a calendar week/month — the same shape `Stats.recentDayKeys`
+  already gives the heatmap above it, so this doesn't introduce a second
+  notion of "this week"). Pure aggregation, same seam as the existing
+  Totals/By-tag sections: `StatsView.recap(trailingDays:)` maps `@Model` rows
+  to `StudyLapseCore.Stats.recentDayKeys`/`perTagSplit`, both already used
+  elsewhere on this screen — no new `StudyLapseCore` code needed. docs/UI.md
+  §8 updated.
+- 2026-09-09 (developer request — ideation list, "session notes"): **Session
+  detail gained a freeform Notes editor.** `Session.noteText` has been in the
+  schema since Phase 0 (docs/DATA_MODEL.md) but no screen ever wired a
+  control to it. `SessionDetailView.session` changed from `let` to
+  `@Bindable` (matching `ExportView`'s existing `@Bindable var profile:
+  ExportProfile`) and a `TextEditor` was added, saving on every change via a
+  `Binding` that also collapses an emptied field back to `nil` rather than
+  persisting `""`. docs/UI.md §7 updated.
+- 2026-09-09 (developer request — ideation list, "recent-tag quick-chips"):
+  **`TagFieldSheet`'s tag suggestions restyled from a vertical list of
+  buttons into a horizontal row of tappable chips.** No new data — `draft`
+  empty already made `TagCatalog.suggestions` return the most-used tags, and
+  the sheet already showed them; this only changes how they're laid out
+  (`TagChip`, same component the segment list and Library already use for
+  color-consistent chips) so re-using a subject reads as a fast tap-row
+  rather than a scroll through single-column rows. docs/UI.md §4 updated.
+- 2026-09-09 (developer request — ideation list, "study goals"): **Home
+  gained a daily study-goal card.** `HomeView` stores `dailyStudyGoalSeconds`
+  via plain `@AppStorage` (matching `dayCutoffHour`/`cameraPositionRawValue`
+  — a single-user local preference, not SwiftData state anything else
+  reads), `0` meaning "no goal set". No settings screen exists anywhere in
+  the app to put a dedicated control on (docs/UI.md's four settings have
+  never had UI built for any of them), so the goal is set, edited, and
+  cleared from a sheet (`GoalEditorSheet`) opened by tapping the card itself
+  — a `Stepper` in 30-minute steps up to 8 hours, matching the existing
+  "Stepper with a sane range" style Export's speed multiplier already uses,
+  rather than a free-text field. The card shows a progress bar and time
+  remaining against `todaysStudySeconds` (the same live total the status
+  card above it already computes) once a goal is set. docs/UI.md's Home
+  section updated.
+- 2026-09-09 (developer request — "change the orientation of my video like
+  rotating or flipping before the clock overlay is applied because otherwise
+  the clock's position is stuck relative to the video's recorded
+  orientation"): **Export gained a Rotate (0°/90°/180°/270°) picker and a
+  Flip horizontally toggle**, applied in `AVFoundationSessionExporter
+  .cropTransform` to the source frame before the centre-crop and before the
+  timer overlay is positioned — see docs/EXPORT.md "Orientation (rotate /
+  flip)" for the transform math and why doing it at this stage (rather than
+  some later correction) is what actually fixes the overlay-corner bug.
+  `ExportProfile` gained `rotationDegreesRaw: Int = 0` / `isMirrored: Bool =
+  false` (docs/DATA_MODEL.md — non-optional with an inline default, not
+  Optional like `fingerprintAtRevision`, since `0`/`false` is a real value
+  here, not an "unset" placeholder). `ExportPlan`/`ExportCoordinator.buildPlan`
+  thread the two settings through unchanged otherwise. New unit tests
+  (`ExportTests.swift`): `orientationAdjustment` stays origin-anchored for
+  every rotation/mirror combination (the crop math below it assumes a plain
+  `0…w, 0…h` rect), a 90° turn changes the scale `cropTransform` computes to
+  fill the same render size, and a mirror negates the x-scale term. Not yet
+  confirmed on device — no Mac access this session (CLAUDE.md).
 - 2026-09-09 (bug fix, third attempt — idle/paused preview still not visible
   after the first two fixes): **`CameraPreviewView.refreshToken` changed from
   a bumped-but-unread `@State` to a real stored property read by the view's

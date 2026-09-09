@@ -12,6 +12,21 @@ final class ExportProfile {
     var speedMultiplier: Double     // used when speedModeRaw == "multiplier"
     var targetDurationSeconds: Double // used when speedModeRaw == "fitToDuration"
     var aspectRaw: String           // "portrait9x16" | "square1x1" | "original"
+    /// Quarter turns clockwise applied to the source before the crop and
+    /// overlay (0/90/180/270 — `VideoRotation`). Lightweight-migratable,
+    /// added 2026-09-09: the clock overlay is positioned in output-render
+    /// space *after* this rotation, so rotating here is what makes the
+    /// overlay's corner track the displayed orientation instead of staying
+    /// stuck relative to the raw recorded orientation. The inline `= 0`
+    /// default (not just the initializer's) is what SwiftData needs to
+    /// backfill this column on rows that predate it — unlike
+    /// `fingerprintAtRevision` below, this couldn't just be Optional: `0`
+    /// already means a real, valid value ("no rotation"), not "unset".
+    var rotationDegreesRaw: Int = 0
+    /// Horizontal flip, applied after `rotationDegreesRaw`. Lightweight-
+    /// migratable, added 2026-09-09 — see `rotationDegreesRaw` on the inline
+    /// default.
+    var isMirrored: Bool = false
     var overlayStyleRaw: String     // "minimal" | "boxed" | "mono"
     var overlayCornerRaw: String    // "topLeft" | "topRight" | "bottomLeft" | "bottomRight"
     var includeIntroCard: Bool
@@ -28,6 +43,8 @@ final class ExportProfile {
          speedMultiplier: Double = 100,
          targetDurationSeconds: Double = 30,
          aspectRaw: String = "portrait9x16",
+         rotationDegreesRaw: Int = 0,
+         isMirrored: Bool = false,
          overlayStyleRaw: String = "minimal",
          overlayCornerRaw: String = "topRight",
          includeIntroCard: Bool = false,
@@ -39,6 +56,8 @@ final class ExportProfile {
         self.speedMultiplier = speedMultiplier
         self.targetDurationSeconds = targetDurationSeconds
         self.aspectRaw = aspectRaw
+        self.rotationDegreesRaw = rotationDegreesRaw
+        self.isMirrored = isMirrored
         self.overlayStyleRaw = overlayStyleRaw
         self.overlayCornerRaw = overlayCornerRaw
         self.includeIntroCard = includeIntroCard
@@ -56,7 +75,8 @@ final class ExportProfile {
         [speedModeRaw,
          String(format: "%.4f", speedMultiplier),
          String(format: "%.4f", targetDurationSeconds),
-         aspectRaw, overlayStyleRaw, overlayCornerRaw,
+         aspectRaw, String(rotationDegreesRaw), isMirrored ? "1" : "0",
+         overlayStyleRaw, overlayCornerRaw,
          includeIntroCard ? "1" : "0",
          includeOutroCard ? "1" : "0"].joined(separator: "|")
     }

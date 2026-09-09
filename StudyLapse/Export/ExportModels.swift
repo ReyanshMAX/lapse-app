@@ -41,6 +41,24 @@ enum OverlayStyle: String, Sendable, CaseIterable {
     var label: String { rawValue.capitalized }
 }
 
+/// User-chosen quarter-turn rotation applied to the source video before the
+/// centre-crop and the overlay are computed (developer request, 2026-09-09 —
+/// "otherwise the clock's position is stuck relative to the video's recorded
+/// orientation"). Raw values match `ExportProfile.rotationDegreesRaw`. Applied
+/// in `AVFoundationSessionExporter.cropTransform` ahead of the crop scale, so
+/// the overlay corner (`OverlayCorner`, chosen in the same render space) is
+/// always relative to the *displayed* orientation, never the sensor's.
+enum VideoRotation: Int, Sendable, CaseIterable {
+    case none = 0
+    case quarter = 90
+    case half = 180
+    case threeQuarter = 270
+
+    init(raw: Int) { self = VideoRotation(rawValue: raw) ?? .none }
+
+    var label: String { "\(rawValue)°" }
+}
+
 /// Corner the timer sits in, inset 48pt on each axis. Raw values match
 /// `ExportProfile.overlayCornerRaw`.
 enum OverlayCorner: String, Sendable, CaseIterable {
@@ -114,6 +132,8 @@ struct ExportPlan: Sendable {
 
     let speedMode: SpeedMode
     let aspect: AspectPreset
+    let rotation: VideoRotation
+    let isMirrored: Bool
     let overlayStyle: OverlayStyle
     let overlayCorner: OverlayCorner
     let includeIntroCard: Bool

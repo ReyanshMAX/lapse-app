@@ -10,6 +10,7 @@ enum ModelContainerFactory {
         Clip.self,
         TagRange.self,
         Tag.self,
+        Project.self,
         ExportProfile.self,
         VoiceoverTake.self,
         ExportRecord.self,

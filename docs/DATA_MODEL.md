@@ -32,6 +32,7 @@ final class Session {
     var outputFrameRate: Int32       // frozen at session creation, default 30
     var statusRaw: String            // SessionStatus.rawValue
     var noteText: String?
+    var projectName: String?         // normalized Project.name, or nil (added 2026-09-09)
     var sourcesPurgedAt: Date?       // non-nil once source clips are purged (D-005)
 
     @Relationship(deleteRule: .cascade, inverse: \Clip.session)
@@ -98,6 +99,23 @@ final class Tag {
     var lastUsedAt: Date
 }
 
+/// A reusable label for grouping sessions across days (added 2026-09-09,
+/// developer request — "projects"), e.g. "MCAT prep" vs "Thesis".
+/// `Session.projectName` references this the same way `TagRange.tagNames`
+/// references `Tag`: a plain normalized-name string, not a `@Relationship` —
+/// a session has at most one project, so this is simpler than the many-tags
+/// case, but avoids the same cascade/nullify-rule question a relationship
+/// would raise.
+@Model
+final class Project {
+    @Attribute(.unique) var name: String   // lowercased, trimmed; display casing in displayName
+    var displayName: String
+    var colorHex: String                   // TagCatalog.palette, shared with Tag — see ProjectCatalog
+    var useCount: Int                      // derived from Session.projectName, same as Tag.useCount
+    var lastUsedAt: Date
+    var createdAt: Date
+}
+
 @Model
 final class ExportProfile {
     @Attribute(.unique) var id: UUID
@@ -106,6 +124,8 @@ final class ExportProfile {
     var speedMultiplier: Double      // used when speedModeRaw == "multiplier"
     var targetDurationSeconds: Double // used when speedModeRaw == "fitToDuration"
     var aspectRaw: String            // "portrait9x16" | "square1x1" | "original"
+    var rotationDegreesRaw: Int      // 0 | 90 | 180 | 270, quarter turns clockwise (VideoRotation)
+    var isMirrored: Bool             // horizontal flip, applied after rotation
     var overlayStyleRaw: String      // "minimal" | "boxed" | "mono"
     var overlayCornerRaw: String     // "topLeft" | "topRight" | "bottomLeft" | "bottomRight"
     var includeIntroCard: Bool
@@ -114,6 +134,13 @@ final class ExportProfile {
     var fingerprintAtRevision: String?  // settings signature when `revision` last changed (Phase 6)
 }
 // `fingerprintAtRevision` is a lightweight-migratable optional added in Phase 6.
+// `rotationDegreesRaw` / `isMirrored`, added 2026-09-09, are lightweight-
+// migratable too, but non-optional: `0`/`false` ("no rotation, no flip") is
+// already a real, meaningful value here, not an "unset" placeholder, so
+// unlike `fingerprintAtRevision` they carry an inline `= 0` / `= false`
+// property default instead — the property default, not just the
+// initializer's, is what SwiftData needs to backfill the column on rows that
+// predate it.
 
 @Model
 final class VoiceoverTake {
@@ -267,6 +294,7 @@ the root is computed in exactly one place.
   bumps `lastUsedAt` for tags still in use. The field's write semantics were
   never specified and a recomputed count cannot drift when a tag is removed and
   re-added.
+- `Project.useCount`/`lastUsedAt` are derived exactly like `Tag`'s — `ProjectCatalog.refreshUseCounts` recomputes `useCount` from the number of `Session` rows currently carrying that `projectName`, called after every assignment change.
 - Deleting a session cascades in SwiftData but does **not** delete files. The
   storage layer must remove the session directory in the same operation, and a
   launch-time sweep should delete orphaned directories with no matching row.
