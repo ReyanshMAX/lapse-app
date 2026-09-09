@@ -6,6 +6,14 @@ import SwiftUI
 /// once, `updateUIView` only re-points the layer's session if it changed).
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Not read internally — its only job is to be an argument the caller
+    /// changes (`RecordView.previewRefreshToken`) so this view's `body`
+    /// dependency is unambiguous. Bumping a `@State` that's never actually
+    /// *read* anywhere doesn't reliably invalidate the reading view in
+    /// SwiftUI; passing it as a genuine argument here does, guaranteeing
+    /// `updateUIView` re-runs once camera setup completes rather than hoping
+    /// the mutation alone forces a re-render. See STATUS.md Deviations.
+    var refreshToken: Int = 0
 
     func makeUIView(context: Context) -> PreviewUIView {
         let view = PreviewUIView()

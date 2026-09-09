@@ -66,7 +66,7 @@ struct RecordView: View {
         NavigationStack {
             ZStack {
                 if showsPreview {
-                    CameraPreviewView(session: boundPreviewSession)
+                    CameraPreviewView(session: boundPreviewSession, refreshToken: previewRefreshToken)
                         .ignoresSafeArea()
                     FramingGuideView()
                         .ignoresSafeArea()

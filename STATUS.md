@@ -597,6 +597,30 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-09 (bug fix, third attempt — idle/paused preview still not visible
+  after the first two fixes): **`CameraPreviewView.refreshToken` changed from
+  a bumped-but-unread `@State` to a real stored property read by the view's
+  own `body`** (`RecordView` now passes `refreshToken: previewRefreshToken`
+  into `CameraPreviewView` instead of only mutating the `@State` and hoping
+  SwiftUI treated the mutation as a dependency). A `@State` var that nothing
+  in `body` actually reads doesn't reliably force a re-render/`updateUIView`
+  in SwiftUI even when it changes.
+  - `CameraPreviewController.start`/`stop` also gained a call-time generation
+    counter: `RecordView` fires `start`/`stop` from more than one independent
+    `Task { ... }` (the `.task(id: previewIntent)` in `body`, plus standalone
+    ones in `beginRecording()`/`resume()`) with no ordering guarantee between
+    them, so a later call's body can run before an earlier one's, submitting
+    to `sessionQueue` out of the order the user actually triggered. Each call
+    now stamps its own generation before dispatching; if a newer call has
+    already claimed the counter by the time an older one's block actually
+    runs, the older one is skipped instead of fighting the newer one for the
+    hardware on/off state. Defense-in-depth for the double-`startRunning()`-
+    with-no-logged-`stop()` anomaly seen in the developer's debug log — not a
+    confirmed root cause, since `startRunning()` twice in a row is itself a
+    documented no-op.
+  - Not yet confirmed fixed on device — this is the third fix attempt for
+    this bug (see the two 2026-09-08 preview entries below); reported back
+    to the developer as best-effort pending a fresh debug-log test.
 - 2026-09-08 (developer request — "make the UI nicer... make the app flow
   intuitive and add... the necessary screens an app has to have like
   homepage and easy controls"): **real tab-bar navigation, a Home dashboard,

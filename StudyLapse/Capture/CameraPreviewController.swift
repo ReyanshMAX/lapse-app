@@ -23,6 +23,19 @@ final class CameraPreviewController {
     private let sessionQueue = DispatchQueue(label: "studylapse.preview.session")
     private var configuredPosition: AVCaptureDevice.Position?
     private var notificationObservers: [NSObjectProtocol] = []
+    /// Bumped synchronously (main-thread, at call time — every `start`/`stop`
+    /// caller is a `Task` spawned from `RecordView`) on every `start`/`stop`
+    /// call, before the actual hardware work is queued. `RecordView` fires
+    /// `start`/`stop` from more than one independent `Task { ... }` (the
+    /// `.task(id: previewIntent)` in `body`, plus standalone ones in
+    /// `beginRecording()`/`resume()`) with no ordering guarantee between
+    /// them — Swift's cooperative scheduler can run a later call's body
+    /// before an earlier call's, so two calls can reach `sessionQueue.async`
+    /// out of the order the user actually triggered them in. Capturing the
+    /// generation at call time and checking it once the block actually runs
+    /// means a call superseded before it even started is skipped instead of
+    /// fighting the newer one for the hardware's on/off state.
+    private var generation = 0
 
     /// Runtime-error/interruption logging plus an auto-restart on interruption
     /// end — this session shares physical camera hardware with the real
@@ -59,8 +72,15 @@ final class CameraPreviewController {
     }
 
     func start(position: AVCaptureDevice.Position = .back) async {
+        generation += 1
+        let myGeneration = generation
         await withCheckedContinuation { continuation in
             sessionQueue.async { [self] in
+                guard myGeneration == generation else {
+                    DebugLog.write("Capture", "preview start (gen \(myGeneration)) superseded before running, current gen \(generation)")
+                    continuation.resume()
+                    return
+                }
                 configureIfNeeded(position: position)
                 // Documented as a no-op if already running — call
                 // unconditionally rather than gate on `isRunning`, which only
@@ -75,8 +95,15 @@ final class CameraPreviewController {
     }
 
     func stop() async {
+        generation += 1
+        let myGeneration = generation
         await withCheckedContinuation { continuation in
             sessionQueue.async { [self] in
+                guard myGeneration == generation else {
+                    DebugLog.write("Capture", "preview stop (gen \(myGeneration)) superseded before running, current gen \(generation)")
+                    continuation.resume()
+                    return
+                }
                 if session.isRunning { session.stopRunning() }
                 continuation.resume()
             }
