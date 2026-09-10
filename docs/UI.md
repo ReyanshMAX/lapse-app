@@ -143,28 +143,10 @@ corner, intro/outro toggles. Live estimated output duration updates as
 controls change, and shows the clamped value when the minimum-speed floor
 binds (docs/DATA_MODEL.md).
 
-Render button → progress with cancel → result screen with Save to Photos, Share,
-and Add Voiceover.
+Render button → progress with cancel → result screen with Save to Photos and
+Share.
 
-### 6. Voiceover
-
-Plays the rendered export. The playhead follows playback (a full drag scrubber
-is Phase 8; use the `VideoPlayer` transport for now). Record button captures a
-take starting at the current output position; recording stops on tap or at end
-of video. Takes render as blocks on a timeline strip under the player, each
-with Mute and Delete actions (re-record = delete + record again). Overlapping
-takes are prevented at creation — the record button is disabled while the
-playhead sits inside an existing take.
-
-A banner appears if any take is stale against the current export profile
-revision (`ExportProfile.reconcileRevision`), offering to delete the affected
-takes. Reverting the profile settings is not offered — no per-revision settings
-history is stored (OPEN_QUESTIONS.md Q-008).
-
-Re-export bakes takes in; the pre-voiceover export is retained until the new one
-succeeds.
-
-### 7. Library
+### 6. Library
 
 Grid of sessions, newest first: thumbnail, date, total study time, tag chips. Tap
 opens a detail sheet with a freeform notes field and a project picker (both
@@ -172,7 +154,7 @@ added 2026-09-09 — see STATUS.md Deviations), the clip list, exports,
 re-export, and delete. Delete removes the database rows and the session
 directory together.
 
-### 8. Stats
+### 7. Stats
 
 Total hours, current streak, a Recap section (added 2026-09-09 — see
 STATUS.md Deviations: study time, session count, top tag, and longest

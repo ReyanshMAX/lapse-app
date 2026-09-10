@@ -10,18 +10,16 @@ final class ExportRecord {
     var session: Session?
     var relativePath: String        // "sessions/<uuid>/exports/<uuid>.mov"
     var createdAt: Date
-    var profileRevision: Int
     var durationSeconds: Double
     var fileSizeBytes: Int64
 
     init(id: UUID = UUID(), session: Session? = nil, relativePath: String,
-         createdAt: Date = .now, profileRevision: Int,
+         createdAt: Date = .now,
          durationSeconds: Double, fileSizeBytes: Int64) {
         self.id = id
         self.session = session
         self.relativePath = relativePath
         self.createdAt = createdAt
-        self.profileRevision = profileRevision
         self.durationSeconds = durationSeconds
         self.fileSizeBytes = fileSizeBytes
     }

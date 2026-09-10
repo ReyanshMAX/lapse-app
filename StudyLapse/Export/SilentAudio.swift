@@ -1,10 +1,10 @@
 import AVFoundation
 
 /// Generates a silent LPCM `.caf` file of a given duration. Export always
-/// carries a full-length silent audio track (D-014) so voiceover takes mix in
-/// later without re-encoding the video. LPCM into `.caf` is used rather than
-/// AAC/`.m4a`: the AAC encoder path through `AVAudioFile` is the flakier one on
-/// the simulator, and `AVAssetExportSession` transcodes the track anyway.
+/// carries a full-length silent audio track (D-014). LPCM into `.caf` is used
+/// rather than AAC/`.m4a`: the AAC encoder path through `AVAudioFile` is the
+/// flakier one on the simulator, and `AVAssetExportSession` transcodes the
+/// track anyway.
 enum SilentAudio {
     static let sampleRate: Double = 44_100
 

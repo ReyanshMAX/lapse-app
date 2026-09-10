@@ -7,8 +7,7 @@ produces a finished, ready-to-post video without the user opening a separate
 editor. A session spans a whole study day rather than one sitting: the user
 records, pauses, leaves the app entirely, comes back hours later and resumes,
 and the app treats the whole day as one continuous session. At the end they tag
-which parts were which subject, record a voiceover over the finished cut, and
-export.
+which parts were which subject and export.
 
 Single user, entirely on device. No backend, no accounts, no network calls of
 any kind in v1. The dominant architectural constraint is that **iOS does not
@@ -42,7 +41,6 @@ StudyLapse/
   Model/               SwiftData entities, study-time math, day-boundary rules
   Storage/             on-disk file layout, path resolution, purge
   Export/              composition graph, overlay layers, render pipeline
-  Voiceover/           audio recording, take management, mixing
   Features/            SwiftUI screens: Record, Tagging, Library, Stats, Export
   Shared/              formatters, design tokens, small utilities
 StudyLapseActivity/    Live Activity widget extension
@@ -61,7 +59,7 @@ StudyLapseTests/       simulator tests — persistence, recovery, export, fixtur
 | how modules fit together, threading | docs/ARCHITECTURE.md |
 | camera, frame intervals, clip files, crash recovery | docs/CAPTURE.md |
 | SwiftData schema, file layout, study-time math | docs/DATA_MODEL.md |
-| composition, overlays, speed, voiceover mixing | docs/EXPORT.md |
+| composition, overlays, speed | docs/EXPORT.md |
 | screens, states, user flows | docs/UI.md |
 | building, deploying to device, SSH workflow | docs/SETUP.md |
 | how to verify anything without a camera | docs/TESTING.md |

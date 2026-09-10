@@ -12,7 +12,6 @@ enum ModelContainerFactory {
         Tag.self,
         Project.self,
         ExportProfile.self,
-        VoiceoverTake.self,
         ExportRecord.self,
     ])
 

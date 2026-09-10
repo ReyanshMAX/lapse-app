@@ -23,7 +23,7 @@ final class Session {
     /// optional.
     var projectName: String?
     /// Set when the user manually purges this session's source clips to reclaim
-    /// storage (D-005, docs/UI.md §7). Non-nil means the `clips/` files are gone
+    /// storage (D-005, docs/UI.md §6). Non-nil means the `clips/` files are gone
     /// but the `Clip` rows remain (they carry `frameCount` / `studyOffsetStart`,
     /// which every stat and tag range depends on); re-export is refused.
     var sourcesPurgedAt: Date?
@@ -32,8 +32,6 @@ final class Session {
     var clips: [Clip] = []
     @Relationship(deleteRule: .cascade, inverse: \TagRange.session)
     var tagRanges: [TagRange] = []
-    @Relationship(deleteRule: .cascade, inverse: \VoiceoverTake.session)
-    var voiceoverTakes: [VoiceoverTake] = []
     @Relationship(deleteRule: .cascade, inverse: \ExportRecord.session)
     var exports: [ExportRecord] = []
     @Relationship(deleteRule: .cascade, inverse: \ExportProfile.session)

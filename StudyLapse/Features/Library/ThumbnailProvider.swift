@@ -1,7 +1,7 @@
 import AVFoundation
 import UIKit
 
-/// Library-grid thumbnails (docs/UI.md §7). Reads `sessions/<id>/thumbnail.jpg`
+/// Library-grid thumbnails (docs/UI.md §6). Reads `sessions/<id>/thumbnail.jpg`
 /// if present; otherwise generates one lazily from the first frame of clip 000,
 /// caches it in memory, and writes it back to disk so every later launch is a
 /// plain file read.

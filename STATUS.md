@@ -478,61 +478,11 @@ fixed on this build.
 
 ---
 
-**Phase 6 — Voiceover — accepted on CI, device pass optional.** The developer
-signed the four criteria off on 2026-08-27 on the strength of the CI tests
-below ("good enough for now"), so Phase 6 is in Done. The checks here were
-never run on a physical device — worth doing when convenient, criterion 4
-(no audible click) most of all, since CI can only prove the mix was built, not
-that it sounds clean. Reach the screen via Export → render → "Add Voiceover",
-or Library → session → an export row → "Voiceover".
-
-**Wear headphones for checks 1 and 4.** The recorder uses `.defaultToSpeaker`,
-so recording a second take while the first plays through the speaker bleeds the
-first take into the second's file — that reads as a click / sync failure when
-the mix is actually correct.
-
-1. `[device]` **a take at output 12.0s lands at 12.0s ±50 ms in the
-   re-export.** Record a take starting ~12s in, go back to Export, hit
-   Re-export, play the result. CI proof: `ExportTests`
-   `testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions` asserts
-   the take's composition-track segment target starts at exactly its
-   `outputStartSeconds` (±1 frame). What CI can't do: run the actual render and
-   listen. Check the debug log for `Voiceover` lines (`audio session
-   .playAndRecord active`, `record() -> true`, `persisted take …`) and an
-   `Export` line `voiceover: mixed 1 take(s)`.
-2. `[device]` **changing the export profile bumps `revision` and marks
-   existing takes stale; stale takes are excluded from re-export.** Record a
-   take, go to Export, change any setting (e.g. toggle the intro card), return
-   to the voiceover screen → the yellow "misaligned" banner should appear, and
-   a re-export should not contain that take (`voiceover: mixed 0 take(s)` in
-   the log). CI proof: `ExportProfileRevisionTests` (bump semantics),
-   `VoiceoverCoordinatorTests.testStaleTakesTrackTheProfileRevision`,
-   `testExportSnapshotsFilterAndResolve` (stale + muted excluded).
-3. `[device]` **the record button is disabled when the playhead is inside an
-   existing take.** Record one take, scrub the playhead into its range → the
-   Record button greys out with the "inside an existing take" caption; scrub
-   past its end → it re-enables. CI proof:
-   `VoiceoverTimelineTests.testPlayheadInsideTakeIsDetected`,
-   `VoiceoverCoordinatorTests.testRecordButtonGatingInsideAnExistingTake`.
-4. `[eyes-on]` **a recorded voiceover plays back in sync with the video and
-   has no audible click at take boundaries.** Record 2–3 takes, re-export,
-   watch the result. The 50 ms fades (`VoiceoverTimeline.fade`, applied via
-   `AVMutableAudioMix` in `AVFoundationSessionExporter`) should make the take
-   edges inaudible. CI proof: only that the mix is built and keyed to the
-   composition tracks (`testVoiceoverTakesBecomeCompositionTracksAtTheirOutputPositions`
-   checks `inputParameters.trackID` == the composition take-track IDs) —
-   audibility is eyes-/ears-only.
-
-Known Phase 6 limitations (not bugs):
-- The stale banner only offers "delete misaligned takes", not "revert the
-  profile" — no settings history is stored (Q-008). Documented in
-  docs/EXPORT.md and OPEN_QUESTIONS.md.
-- No scrubber drag control yet — the playhead follows playback only; scrub
-  with the `VideoPlayer`'s own transport. Full scrubber + timeline polish is
-  Phase 8.
-- `stopTake()` returns `VoiceoverTake?` not `VoiceoverTake` (nothing to return
-  when stopping nothing) — same media-only deviation as `CaptureController` /
-  `SessionExporter`.
+**Phase 6 — Voiceover — removed 2026-09-10.** Was accepted on CI 2026-08-27
+and shipped; the developer then asked for it to be cut entirely (see
+Deviations below, and DECISIONS.md D-030). There is nothing left to verify —
+the screen, coordinator, model entity, and export mix stage no longer exist.
+BUILD.md's Phase 6 section is kept as history with a note pointing here.
 
 ---
 
@@ -598,6 +548,43 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-10 (developer request — "remove the voiceover feature altogether
+  for now"): **voiceover deleted entirely, not just hidden.** Phase 6 shipped
+  and was signed off 2026-08-27; the developer asked for it gone. Removed:
+  `StudyLapse/Voiceover/` (`VoiceoverCoordinator`, `VoiceoverRecorder`,
+  `MicrophonePermission`), `Features/Voiceover/VoiceoverView.swift`,
+  `Model/VoiceoverTake.swift` (and its schema entry in
+  `ModelContainerFactory`, and `Session.voiceoverTakes`),
+  `StudyLapseCore/VoiceoverTimeline.swift`, the "Add Voiceover"/"Voiceover"
+  entry points in `ExportView`/`SessionDetailView`, the export-time audio-mix
+  stage in `AVFoundationSessionExporter` (`Prepared.audioMix`,
+  `buildVoiceoverMix`, `resolvedTakes`), and every test file that existed
+  only to cover this (`VoiceoverCoordinatorTests`, `VoiceoverTimelineTests`,
+  `ExportProfileRevisionTests`, plus the voiceover-only test methods in
+  `ExportTests`). `NSMicrophoneUsageDescription` dropped from
+  `StudyLapse/Info.plist` — nothing in the app requests microphone access
+  anymore (D-014: capture itself was always silent).
+  - `ExportProfile.revision`/`fingerprintAtRevision`/`reconcileRevision()`/
+    `settingsFingerprint` and `ExportRecord.profileRevision` are gone too —
+    the whole revision-tracking mechanism existed solely to detect takes
+    recorded against a stale export profile, so with no takes left to go
+    stale it was dead weight, not a feature worth keeping in isolation.
+  - docs/EXPORT.md ("Voiceover mixing" section + stage 3b), docs/UI.md (§6
+    Voiceover screen deleted, Library renumbered §6, Stats §7; every live
+    code comment citing the old §7/§8 updated to match), docs/DATA_MODEL.md
+    (`VoiceoverTake` entity, the two removed `ExportProfile`/`ExportRecord`
+    fields, the `voiceovers/` on-disk directory), docs/ARCHITECTURE.md
+    (`VoiceoverCoordinator`, the `Voiceover` module, data-flow step 9),
+    docs/TESTING.md, and CLAUDE.md's repo-structure table and opening pitch
+    paragraph all updated in the same change (standing rule 2). Open
+    Question Q-008 (the stale-voiceover-banner revert action) is deleted —
+    it no longer applies to anything. DECISIONS.md D-011 marked superseded
+    by new D-030 (D-011's reasoning isn't wrong, this is a scope cut, not a
+    reversal — see D-030 for why). BUILD.md's Phase 6 section is left as
+    history with a note pointing here.
+  - No device confirmation needed — this is a deletion, and CI (all four
+    jobs) is the same proof a removal needs: it still builds and the
+    remaining tests still pass.
 - 2026-09-10 (developer request — "make the app show the app name as
   Hourglass and make the hourglass-logo.png asset I added the app icon and
   logo"): **app now displays as "Hourglass"** — `CFBundleDisplayName` set in

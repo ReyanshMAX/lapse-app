@@ -64,16 +64,9 @@ final class ExportCoordinator {
         defer { isExporting = false }
 
         do {
-            // Settle the revision before the record is written, so this
-            // export's `ExportRecord.profileRevision` reflects the current
-            // settings and any voiceover takes recorded over it stamp correctly
-            // (docs/DATA_MODEL.md).
-            if profile.reconcileRevision() { try? context.save() }
-
             let plan = try Self.buildPlan(session: session, profile: profile)
-            let takes = VoiceoverCoordinator.exportSnapshots(session: session, profile: profile)
             let url = try await exporter.export(
-                ExportRequest(plan: plan, voiceoverTakes: takes),
+                ExportRequest(plan: plan),
                 progress: { [weak self] value in self?.progress = value })
 
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -81,7 +74,6 @@ final class ExportCoordinator {
             let record = ExportRecord(
                 session: session,
                 relativePath: StorageLocator.relativePath(for: url),
-                profileRevision: profile.revision,
                 durationSeconds: plan.outputDuration,
                 fileSizeBytes: size)
             context.insert(record)
@@ -150,7 +142,6 @@ final class ExportCoordinator {
             overlayCorner: OverlayCorner(raw: profile.overlayCornerRaw),
             includeIntroCard: profile.includeIntroCard,
             includeOutroCard: profile.includeOutroCard,
-            profileRevision: profile.revision,
             tagNames: tagNames)
     }
 

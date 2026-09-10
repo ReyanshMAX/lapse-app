@@ -39,8 +39,6 @@ final class Session {
     var clips: [Clip] = []
     @Relationship(deleteRule: .cascade, inverse: \TagRange.session)
     var tagRanges: [TagRange] = []
-    @Relationship(deleteRule: .cascade, inverse: \VoiceoverTake.session)
-    var voiceoverTakes: [VoiceoverTake] = []
     @Relationship(deleteRule: .cascade, inverse: \ExportRecord.session)
     var exports: [ExportRecord] = []
     @Relationship(deleteRule: .cascade, inverse: \ExportProfile.session)
@@ -130,29 +128,13 @@ final class ExportProfile {
     var overlayCornerRaw: String     // "topLeft" | "topRight" | "bottomLeft" | "bottomRight"
     var includeIntroCard: Bool
     var includeOutroCard: Bool
-    var revision: Int                // bumped on any change; invalidates voiceover takes
-    var fingerprintAtRevision: String?  // settings signature when `revision` last changed (Phase 6)
 }
-// `fingerprintAtRevision` is a lightweight-migratable optional added in Phase 6.
 // `rotationDegreesRaw` / `isMirrored`, added 2026-09-09, are lightweight-
-// migratable too, but non-optional: `0`/`false` ("no rotation, no flip") is
-// already a real, meaningful value here, not an "unset" placeholder, so
-// unlike `fingerprintAtRevision` they carry an inline `= 0` / `= false`
-// property default instead — the property default, not just the
-// initializer's, is what SwiftData needs to backfill the column on rows that
-// predate it.
-
-@Model
-final class VoiceoverTake {
-    @Attribute(.unique) var id: UUID
-    var session: Session?
-    var relativePath: String         // "sessions/<uuid>/voiceovers/<uuid>.m4a"
-    var outputStartSeconds: Double   // position on the EXPORTED timeline, not the study axis
-    var durationSeconds: Double
-    var recordedAgainstProfileRevision: Int
-    var isMuted: Bool
-    var createdAt: Date
-}
+// migratable optionals-in-spirit but non-optional: `0`/`false` ("no rotation,
+// no flip") is already a real, meaningful value here, not an "unset"
+// placeholder, so they carry an inline `= 0` / `= false` property default —
+// the property default, not just the initializer's, is what SwiftData needs
+// to backfill the column on rows that predate it.
 
 @Model
 final class ExportRecord {
@@ -160,7 +142,6 @@ final class ExportRecord {
     var session: Session?
     var relativePath: String         // "sessions/<uuid>/exports/<uuid>.mov"
     var createdAt: Date
-    var profileRevision: Int
     var durationSeconds: Double
     var fileSizeBytes: Int64
 }
@@ -175,7 +156,7 @@ in this app, so they are named explicitly and never mixed.
 |---|---|---|---|
 | Wall clock | `Date` | Real time | session start/end display, day boundary, battery warnings |
 | Study time | seconds | Sum of clip durations; pauses excluded | overlay timer, tag ranges, all stats, streaks |
-| Output time | seconds | Position in the exported video | voiceover alignment, export progress |
+| Output time | seconds | Position in the exported video | export progress |
 
 Conversions:
 
@@ -271,8 +252,6 @@ StudyLapse/
       clips/
         000_<clip-uuid>.mov
         001_<clip-uuid>.mov
-      voiceovers/
-        <take-uuid>.m4a
       exports/
         <export-uuid>.mov
       thumbnail.jpg          generated lazily on first library view, first frame of clip 000
@@ -303,25 +282,11 @@ the root is computed in exactly one place.
   with no matching `Session.id` — unparseable names and anything outside
   `sessions/` are left alone.
 - `Session.sourcesPurgedAt` records a manual source-clip purge (D-005,
-  docs/UI.md §7). `SessionStorage.purgeSources` deletes the files under
+  docs/UI.md §6). `SessionStorage.purgeSources` deletes the files under
   `clips/`, keeps every `Clip` row (they carry `frameCount` /
   `studyOffsetStart`, which all study-time totals, stats, and tag ranges read),
   and stamps the date. `ExportCoordinator.buildPlan` then throws
   `ExportError.sourcesPurged`, and the library detail sheet hides re-export.
-  Exports and voiceovers already on disk are untouched and stay playable.
-- `ExportProfile.revision` increments on any field change. The write semantics
-  (unspecified before Phase 6): `revision` is not bumped on every keystroke.
-  `ExportProfile.settingsFingerprint` is a signature of all eight user-visible
-  settings; `reconcileRevision()` bumps `revision` and restamps
-  `fingerprintAtRevision` only when the fingerprint has actually changed since
-  the last reconcile, so toggling a setting and toggling it back is a no-op.
-  A fresh profile's first reconcile stamps the fingerprint without bumping, so
-  its takes stamp against revision 0. Called from `ExportCoordinator.export`
-  (so each `ExportRecord.profileRevision` is current) and on every edit in the
-  export screen. A `VoiceoverTake` whose `recordedAgainstProfileRevision`
-  differs from the profile's current `revision` is flagged in the UI as
-  misaligned and excluded from export — never silently re-timed, since a speed
-  change moves every word. A take is stamped with the `ExportRecord.profileRevision`
-  of the file it was recorded over, not the live profile.
+  Exports already on disk are untouched and stay playable.
 - Untagged study time is a real state, not an error. Stats must report it as
   "untagged" rather than dropping it from totals.

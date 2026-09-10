@@ -2,7 +2,7 @@ import StudyLapseCore
 import SwiftData
 import SwiftUI
 
-/// Library grid (docs/UI.md §7): finished sessions newest first, each a tile
+/// Library grid (docs/UI.md §6): finished sessions newest first, each a tile
 /// with a thumbnail, date, total study time, and tag chips. Tapping opens the
 /// session detail sheet. Stats is its own tab (`RootTabView`).
 struct LibraryView: View {

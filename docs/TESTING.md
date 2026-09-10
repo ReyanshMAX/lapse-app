@@ -77,7 +77,7 @@ Fully verifiable in CI with no camera:
   orders
 - Day-boundary auto-close fires only when paused, and not during recording
 - The full export path: composition, speed scaling, minimum-speed clamping,
-  aspect transforms, overlay layer tree, silent audio track, voiceover placement
+  aspect transforms, overlay layer tree, silent audio track
 
 ## Export verification without eyes
 

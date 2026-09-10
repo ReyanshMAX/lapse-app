@@ -401,6 +401,12 @@ StudyLapseCore/Sources/StudyLapseCore/TagRangeMath.swift
 
 ## Phase 6 — Voiceover
 
+**Reverted 2026-09-10 (D-030, developer request).** Everything below was built
+and signed off, then the feature was deleted entirely — see STATUS.md
+Deviations and DECISIONS.md D-030. Kept here for history; none of the
+acceptance criteria below still apply to the app as it stands, and the
+interface contracts/files listed no longer exist.
+
 **Scope**
 - `VoiceoverCoordinator`, `AVAudioRecorder`, take management
 - Voiceover screen: scrubber, timeline strip, record/mute/delete/re-record

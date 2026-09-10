@@ -2,7 +2,7 @@
 
 ## Overview
 
-Six modules with one-directional dependencies. SwiftUI features depend on a small
+Five modules with one-directional dependencies. SwiftUI features depend on a small
 set of `@Observable` coordinators; those coordinators own the AVFoundation and
 SwiftData work. No SwiftUI view ever touches an `AVCaptureSession`, a
 `ModelContext` write, or a file path directly.
@@ -19,9 +19,9 @@ SwiftData work. No SwiftUI view ever touches an `AVCaptureSession`, a
 ```
 Features (SwiftUI)
       ↓
-Coordinators (@Observable)   SessionCoordinator, ExportCoordinator, VoiceoverCoordinator
+Coordinators (@Observable)   SessionCoordinator, ExportCoordinator
       ↓
-Capture   Export   Voiceover   Storage
+Capture   Export   Storage
       ↓
 Model (SwiftData entities + StudyLapseCore pure logic)
 ```
@@ -79,15 +79,6 @@ final class ExportCoordinator {
     func export(session: Session, profile: ExportProfile) async throws
     func cancel()
 }
-
-@Observable
-final class VoiceoverCoordinator {
-    private(set) var isRecording: Bool
-    private(set) var takes: [VoiceoverTake]
-    func startTake(at outputSeconds: Double) throws
-    func stopTake() async
-    func delete(_ take: VoiceoverTake)
-}
 ```
 
 Coordinators are created once in the app entry point and passed down via
@@ -124,8 +115,6 @@ accumulate counters and hand off at clip boundaries.
    at clip boundaries with `origin = .segment`, navigate to tagging.
 7. Tagging → edit `TagRange` rows via segment list or slider.
 8. Export → `ExportCoordinator` composes, renders, writes `ExportRecord`.
-9. Voiceover → takes recorded against the export's profile revision, then
-   re-export to bake them in.
 
 ## Error handling
 

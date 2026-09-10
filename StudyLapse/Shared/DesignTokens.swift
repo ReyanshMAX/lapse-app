@@ -62,8 +62,8 @@ struct ScreenBackground: ViewModifier {
 }
 
 /// `List`/`Form` default to the system grouped background; this swaps in the
-/// token surfaces so grouped screens (Export, Voiceover's take list,
-/// Library's detail sheet, Stats) match the rest of the app.
+/// token surfaces so grouped screens (Export, Library's detail sheet, Stats)
+/// match the rest of the app.
 struct TokenizedListStyle: ViewModifier {
     func body(content: Content) -> some View {
         content

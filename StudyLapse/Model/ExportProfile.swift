@@ -1,9 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Per-session export settings. `revision` bumps on any field change and
-/// invalidates voiceover takes recorded against an older revision, since a
-/// speed change moves every word on the output timeline.
+/// Per-session export settings.
 @Model
 final class ExportProfile {
     @Attribute(.unique) var id: UUID
@@ -19,9 +17,7 @@ final class ExportProfile {
     /// overlay's corner track the displayed orientation instead of staying
     /// stuck relative to the raw recorded orientation. The inline `= 0`
     /// default (not just the initializer's) is what SwiftData needs to
-    /// backfill this column on rows that predate it — unlike
-    /// `fingerprintAtRevision` below, this couldn't just be Optional: `0`
-    /// already means a real, valid value ("no rotation"), not "unset".
+    /// backfill this column on rows that predate it.
     var rotationDegreesRaw: Int = 0
     /// Horizontal flip, applied after `rotationDegreesRaw`. Lightweight-
     /// migratable, added 2026-09-09 — see `rotationDegreesRaw` on the inline
@@ -31,12 +27,6 @@ final class ExportProfile {
     var overlayCornerRaw: String    // "topLeft" | "topRight" | "bottomLeft" | "bottomRight"
     var includeIntroCard: Bool
     var includeOutroCard: Bool
-    var revision: Int               // bumped on any change; invalidates voiceover takes
-    /// The `settingsFingerprint` captured when `revision` last changed.
-    /// Lightweight-migratable optional added in Phase 6 (docs/DATA_MODEL.md):
-    /// nil means "never reconciled", and the first `reconcileRevision()` stamps
-    /// it without bumping, so a fresh profile's takes stamp against revision 0.
-    var fingerprintAtRevision: String?
 
     init(id: UUID = UUID(), session: Session? = nil,
          speedModeRaw: String = "multiplier",
@@ -48,8 +38,7 @@ final class ExportProfile {
          overlayStyleRaw: String = "minimal",
          overlayCornerRaw: String = "topRight",
          includeIntroCard: Bool = false,
-         includeOutroCard: Bool = false,
-         revision: Int = 0) {
+         includeOutroCard: Bool = false) {
         self.id = id
         self.session = session
         self.speedModeRaw = speedModeRaw
@@ -62,36 +51,5 @@ final class ExportProfile {
         self.overlayCornerRaw = overlayCornerRaw
         self.includeIntroCard = includeIntroCard
         self.includeOutroCard = includeOutroCard
-        self.revision = revision
-        self.fingerprintAtRevision = nil
-    }
-
-    /// A signature of every user-visible export setting. `reconcileRevision()`
-    /// bumps `revision` whenever this changes, which marks voiceover takes
-    /// recorded against the old revision as stale (docs/DATA_MODEL.md). All
-    /// fields are included, not only the timing ones — BUILD.md Phase 6
-    /// criterion 2 is "changing the export profile bumps `revision`".
-    var settingsFingerprint: String {
-        [speedModeRaw,
-         String(format: "%.4f", speedMultiplier),
-         String(format: "%.4f", targetDurationSeconds),
-         aspectRaw, String(rotationDegreesRaw), isMirrored ? "1" : "0",
-         overlayStyleRaw, overlayCornerRaw,
-         includeIntroCard ? "1" : "0",
-         includeOutroCard ? "1" : "0"].joined(separator: "|")
-    }
-
-    /// Bumps `revision` if any setting changed since the last reconcile.
-    /// Idempotent — safe to call on every export and on every settings edit.
-    /// Returns true when the revision actually advanced.
-    @discardableResult
-    func reconcileRevision() -> Bool {
-        let current = settingsFingerprint
-        guard fingerprintAtRevision != current else { return false }
-        let firstReconcile = (fingerprintAtRevision == nil)
-        fingerprintAtRevision = current
-        guard !firstReconcile else { return false }
-        revision += 1
-        return true
     }
 }

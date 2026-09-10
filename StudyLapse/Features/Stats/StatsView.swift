@@ -2,7 +2,7 @@ import StudyLapseCore
 import SwiftData
 import SwiftUI
 
-/// Stats screen (docs/UI.md §8): total hours, current streak by `dayKey`,
+/// Stats screen (docs/UI.md §7): total hours, current streak by `dayKey`,
 /// per-tag time split as a horizontal bar with an explicit untagged band, and
 /// a calendar heatmap. All aggregation is `StudyLapseCore.Stats`; this view
 /// only maps `@Model` rows to its plain inputs.

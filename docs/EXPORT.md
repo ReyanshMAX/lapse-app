@@ -1,15 +1,16 @@
-# EXPORT.md — composition graph, overlay rendering, speed, voiceover mixing
+# EXPORT.md — composition graph, overlay rendering, speed
 
 ## Overview
 
 Export concatenates a session's finalized clips into an `AVMutableComposition`,
 scales the result to the requested speed, burns in an animated study timer and
-optional intro/outro cards via `AVVideoCompositionCoreAnimationTool`, mixes any
-voiceover takes onto a silent audio track, and writes a finished file ready to
-post. This is the app's differentiating feature — everything else is a tracker.
+optional intro/outro cards via `AVVideoCompositionCoreAnimationTool`, adds a
+silent audio track, and writes a finished file ready to post. This is the
+app's differentiating feature — everything else is a tracker.
 
 ## Non-goals
 
+- No voiceover in v1 — shipped in Phase 6, removed 2026-09-10 (D-030)
 - No subrange export in v1 — whole session only (D-019)
 - No transitions, filters, colour grading, music, or captions
 - No re-encoding of source clips outside of export
@@ -33,13 +34,12 @@ struct ExportPlan: Sendable {            // built on the main actor by ExportCoo
     let overlayCorner: OverlayCorner
     let includeIntroCard: Bool
     let includeOutroCard: Bool
-    // sessionID / sessionStartedAt / dayKey / profileRevision / tagNames …
+    // sessionID / sessionStartedAt / dayKey / tagNames …
     var outputDuration: Double            // == TimeAxis.outputDuration(...)
 }
 
 struct ExportRequest: Sendable {
     let plan: ExportPlan
-    var voiceoverTakes: [VoiceoverTakeSnapshot] = []   // Phase 6; non-muted, non-stale only
 }
 
 @MainActor
@@ -80,19 +80,6 @@ Stages, in order:
    track (D-014). LPCM not AAC — the AAC encode path is the flakier one on the
    simulator and the export session transcodes anyway. `insertEmptyTimeRange`
    alone is not enough: the export session drops a fully-empty track.
-3b. **Voiceover (Phase 6).** For each non-muted, non-stale take
-   (`VoiceoverCoordinator.exportSnapshots`, overlaps already resolved
-   keep-newer), add one more composition audio track and
-   `insertTimeRange(of: takeAudio, at: CMTime(seconds: outputStartSeconds))` —
-   the leading empty time is padded automatically, so the take's audio lands
-   at its output position. Build an `AVMutableAudioMix` with one
-   `AVMutableAudioMixInputParameters(track:)` **per composition track** (never
-   the source asset track — that is a silent no-op) carrying a 50 ms linear
-   volume ramp in and out (`VoiceoverTimeline.fade`, which collapses to the
-   midpoint for takes under 100 ms). `prepare()` returns the mix on
-   `Prepared.audioMix`; `render()` sets it on the `AVAssetExportSession`. The
-   exporter re-runs `VoiceoverTimeline.resolveOverlaps` as a backstop and logs
-   a `DebugLog` line if any take was dropped.
 4. **Video composition.** `AVMutableVideoComposition` with `renderSize` from the
    aspect preset, `frameDuration = CMTime(value: 1, timescale: 30)`, one
    instruction spanning the whole range (black `backgroundColor`) with a layer
@@ -228,32 +215,6 @@ Corner positions inset 48pt from the render bounds on each axis.
 Intro card: session date, total study time, tag names joined by `·`. Outro card:
 total study time and streak count. Both are `CATextLayer`s over a solid
 background layer, centred, using the same type styles as the app (docs/UI.md).
-
-## Voiceover mixing
-
-- Takes are positioned on the **output** timeline (`outputStartSeconds`), not the
-  study axis, because the user records them while watching the finished cut. A
-  take is stamped with the `ExportRecord.profileRevision` of the file it was
-  recorded over (`VoiceoverCoordinator` init `recordedAgainstRevision`), not the
-  live profile — the profile may have moved since that render.
-- Each take becomes its own composition audio track (in addition to the silent
-  track from stage 3), inserted at `CMTime(seconds: outputStartSeconds)`.
-- Build an `AVMutableAudioMix` with one `AVMutableAudioMixInputParameters` per
-  take, **keyed to the composition track** the take was inserted into — an
-  input-parameters object built from the source asset track applies no fades and
-  raises no error. Apply a 50 ms linear fade in and out at each take's edges
-  (`VoiceoverTimeline.fade`). `AVFoundationSessionExporter.Prepared` carries the
-  mix so CI can inspect it; `render()` assigns it to the export session.
-- Overlapping takes are not permitted — `VoiceoverCoordinator` disables the
-  record button while the playhead sits inside an existing take. If overlaps are
-  found at export time (`VoiceoverTimeline.resolveOverlaps`), the newer take
-  (`createdAt`) wins and a `DebugLog` line records the drop.
-- Takes whose `recordedAgainstProfileRevision` differs from the profile's current
-  revision (`ExportProfile.reconcileRevision`) are excluded from export and
-  surfaced in the UI as misaligned (docs/DATA_MODEL.md). Never silently re-time
-  them. The stale banner offers to delete the misaligned takes; reverting the
-  profile to its pre-change settings is not offered — the settings history that
-  would require is not stored (OPEN_QUESTIONS.md Q-008).
 
 ## Progress and cancellation
 

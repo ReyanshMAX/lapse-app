@@ -46,7 +46,7 @@ final class SessionStorageTests: XCTestCase {
         FileManager.default.createFile(atPath: StorageLocator.url(forRelativePath: exportRelative).path,
                                        contents: Data([0x00]))
         let export = ExportRecord(session: session, relativePath: exportRelative,
-                                  profileRevision: 0, durationSeconds: 3, fileSizeBytes: 1)
+                                  durationSeconds: 3, fileSizeBytes: 1)
         context.insert(export)
 
         StudyOffsets.recompute(for: session)

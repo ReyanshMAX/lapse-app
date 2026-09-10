@@ -48,7 +48,6 @@ private struct ExportControls: View {
     @Bindable var profile: ExportProfile
     let coordinator: ExportCoordinator
 
-    @Environment(\.modelContext) private var modelContext
     @State private var saveState: SaveState = .idle
 
     private enum SaveState: Equatable {
@@ -133,15 +132,6 @@ private struct ExportControls: View {
             renderSection
         }
         .tokenizedListStyle()
-        // `revision` bumps on any settings change so voiceover takes recorded
-        // against an older revision are flagged stale (docs/DATA_MODEL.md).
-        // `reconcileRevision` is idempotent: the first call (on appear) only
-        // stamps the fingerprint, later calls bump when a setting actually
-        // moved. Every render also reconciles (ExportCoordinator.export).
-        .onAppear { profile.reconcileRevision() }
-        .onChange(of: profile.settingsFingerprint) { _, _ in
-            if profile.reconcileRevision() { try? modelContext.save() }
-        }
     }
 
     @ViewBuilder
@@ -171,22 +161,15 @@ private struct ExportControls: View {
             }
 
             if let url = coordinator.lastExportURL, !coordinator.isExporting {
-                resultRows(url: url, record: coordinator.lastExportRecord)
+                resultRows(url: url)
             }
         }
     }
 
     @ViewBuilder
-    private func resultRows(url: URL, record: ExportRecord?) -> some View {
+    private func resultRows(url: URL) -> some View {
         NavigationLink("Preview") { PlaybackView(url: url) }
         ShareLink("Share", item: url)
-        if let record {
-            NavigationLink {
-                VoiceoverView(session: session, export: record)
-            } label: {
-                Label("Add Voiceover", systemImage: "mic")
-            }
-        }
         Button {
             saveState = .saving
             Task {

@@ -1,11 +1,11 @@
 import Foundation
 
-/// Pure aggregation for the stats screen (docs/UI.md §8): totals, current
+/// Pure aggregation for the stats screen (docs/UI.md §7): totals, current
 /// streak by `dayKey`, and the per-tag time split with an explicit untagged
 /// band. Foundation-only — the app layer maps `@Model` rows to the plain
 /// value inputs here (same seam as `TagRangeMath`).
 ///
-/// **Multi-tag attribution (Q-007).** docs/UI.md §8 specifies the split as
+/// **Multi-tag attribution (Q-007).** docs/UI.md §7 specifies the split as
 /// bands of a single horizontal bar with untagged as its own band; that only
 /// reads correctly if the bands partition the total. So a range carrying N
 /// tags contributes `duration / N` to each of its tags rather than the full

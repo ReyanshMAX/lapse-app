@@ -13,7 +13,7 @@ enum SessionStorage {
     }
 
     /// Delete a session: its SwiftData rows (clips / tag ranges / exports /
-    /// voiceovers / profile cascade) and its on-disk directory, together.
+    /// profile cascade) and its on-disk directory, together.
     @MainActor
     static func deleteSession(_ session: Session, in context: ModelContext) {
         let id = session.id
@@ -36,7 +36,7 @@ enum SessionStorage {
     /// `clips/` to reclaim storage but keeps every `Clip` row — they carry
     /// `frameCount` / `studyOffsetStart`, which every study-time total, stat,
     /// streak, and tag range depends on. Stamps `sourcesPurgedAt` so
-    /// re-export is refused. Exports and voiceovers are left untouched.
+    /// re-export is refused. Exports already on disk are left untouched.
     @MainActor
     static func purgeSources(_ session: Session, in context: ModelContext) {
         let clipsDirectory = directory(for: session.id)

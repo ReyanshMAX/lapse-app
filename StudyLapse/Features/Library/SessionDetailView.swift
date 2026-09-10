@@ -2,7 +2,7 @@ import AVKit
 import StudyLapseCore
 import SwiftUI
 
-/// Session detail sheet (docs/UI.md §7): clip list, exports with re-export,
+/// Session detail sheet (docs/UI.md §6): clip list, exports with re-export,
 /// manual source purge (D-005), and delete (rows + directory together via
 /// `SessionStorage`).
 struct SessionDetailView: View {
@@ -202,11 +202,6 @@ struct SessionDetailView: View {
                 HStack(spacing: 16) {
                     NavigationLink("Preview") { PlaybackView(url: url) }
                     ShareLink("Share", item: url)
-                    if session.canReExport {
-                        NavigationLink("Voiceover") {
-                            VoiceoverView(session: session, export: export)
-                        }
-                    }
                 }
                 .font(.caption)
             } else {

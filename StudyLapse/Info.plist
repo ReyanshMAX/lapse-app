@@ -30,8 +30,6 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Hourglass records a timelapse of your study session using the camera. Video stays on this device and is never uploaded.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Used only when you record a voiceover over a finished timelapse.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Used to save your exported timelapse to Photos.</string>
 	<key>NSSupportsLiveActivities</key>
