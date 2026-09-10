@@ -154,6 +154,24 @@ added 2026-09-09 — see STATUS.md Deviations), the clip list, exports,
 re-export, and delete. Delete removes the database rows and the session
 directory together.
 
+A toolbar button (added 2026-09-10 — developer request, "merge multiple study
+sessions at export... not merge the source clips") opens **Merge Sessions**: a
+list of finished, re-exportable sessions with Today/This Week/All quick
+filters, multi-select (checkmark rows), and a footer showing the running
+selection count and combined study time. Sessions whose capture interval or
+frame rate doesn't match the current selection are disabled with an inline
+note (docs/EXPORT.md "Merging sessions" — mixed settings can't merge in v1).
+Continue (enabled at 2+ selected) pushes the same Export screen (§5) used for
+a normal export, titled "Merge & Export" — same controls, same render flow,
+just built from every selected session's clips concatenated chronologically.
+
+The result has no session to live under, so it doesn't appear in any tile.
+Library gets a **Merged** section above the grid instead: each row shows the
+session count, render date, duration/size, and Preview/Share/Delete — the same
+row shape the session detail sheet's exports already use. Deleting one removes
+its file and database row together; it never touches the sessions that
+contributed to it (docs/DATA_MODEL.md Notes).
+
 ### 7. Stats
 
 Total hours, current streak, a Recap section (added 2026-09-09 — see

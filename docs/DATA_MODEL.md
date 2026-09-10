@@ -139,12 +139,21 @@ final class ExportProfile {
 @Model
 final class ExportRecord {
     @Attribute(.unique) var id: UUID
-    var session: Session?
-    var relativePath: String         // "sessions/<uuid>/exports/<uuid>.mov"
+    var session: Session?             // nil for a merged export
+    var mergedSessionIDs: [UUID]?     // non-nil (2+) only for a merged export
+    var relativePath: String         // "sessions/<uuid>/exports/<uuid>.mov", or "merged-exports/<uuid>.mov"
     var createdAt: Date
     var durationSeconds: Double
     var fileSizeBytes: Int64
 }
+// `session`/`mergedSessionIDs` are mutually exclusive: a normal export has
+// `session` set and `mergedSessionIDs` nil; a merge (added 2026-09-10 —
+// "merge multiple study sessions at export... not merge the source clips")
+// has `session` nil and `mergedSessionIDs` set to every contributing
+// session's id, chronological. No `@Relationship` to the merged sessions —
+// deliberately, so deleting one of them doesn't cascade-delete an export
+// that also contains other sessions' footage (the same "already-made
+// exports survive a source purge" rule below already gives a normal export).
 ```
 
 ## Study-time axis
@@ -255,6 +264,8 @@ StudyLapse/
       exports/
         <export-uuid>.mov
       thumbnail.jpg          generated lazily on first library view, first frame of clip 000
+  merged-exports/
+    <export-uuid>.mov        a merge has no single owning session to nest under (ExportRecord.session == nil)
 ```
 
 The root directory must be marked `isExcludedFromBackup = true`. Only relative
@@ -288,5 +299,11 @@ the root is computed in exactly one place.
   and stamps the date. `ExportCoordinator.buildPlan` then throws
   `ExportError.sourcesPurged`, and the library detail sheet hides re-export.
   Exports already on disk are untouched and stay playable.
+- A merged export (`ExportRecord.mergedSessionIDs` non-nil) is likewise
+  untouched by deleting or purging any of its source sessions — it holds no
+  `@Relationship` to them, only their ids, so there is nothing to cascade.
+  Deleting the `ExportRecord` itself (Library "Merged" section) removes its
+  `merged-exports/<uuid>.mov` file the same way `SessionStorage.deleteSession`
+  removes a normal export's file: row and file together, in one place.
 - Untagged study time is a real state, not an error. Stats must report it as
   "untagged" rather than dropping it from totals.

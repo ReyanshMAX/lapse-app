@@ -78,6 +78,9 @@ Fully verifiable in CI with no camera:
 - Day-boundary auto-close fires only when paused, and not during recording
 - The full export path: composition, speed scaling, minimum-speed clamping,
   aspect transforms, overlay layer tree, silent audio track
+- Merging sessions: chronological concatenation across sessions, the
+  mismatched-capture-settings refusal, and that a single session behaves
+  identically whether it goes through the single- or multi-session path
 
 ## Export verification without eyes
 

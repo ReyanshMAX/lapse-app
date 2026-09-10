@@ -3,26 +3,32 @@ import SwiftUI
 
 /// Export screen (docs/UI.md §5): speed, aspect, overlay, intro/outro, a live
 /// estimated output duration, then render → progress → Save to Photos / Share.
-/// Reached from the tagging flow (Phase 4) and from the library session detail
-/// sheet as a re-export (Phase 5).
+/// Reached from the tagging flow (Phase 4), from the library session detail
+/// sheet as a re-export (Phase 5), and from the Library "Merge Sessions"
+/// picker with more than one session (developer request, 2026-09-10).
 struct ExportView: View {
-    let session: Session
+    let sessions: [Session]
+
+    init(sessions: [Session]) { self.sessions = sessions }
+    init(session: Session) { self.sessions = [session] }
 
     @Environment(\.modelContext) private var modelContext
     @State private var coordinator: ExportCoordinator?
     @State private var profile: ExportProfile?
 
+    private var isMerged: Bool { sessions.count > 1 }
+
     var body: some View {
         Group {
             if let profile, let coordinator {
-                ExportControls(session: session, profile: profile, coordinator: coordinator)
+                ExportControls(sessions: sessions, profile: profile, coordinator: coordinator)
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .screenBackground()
             }
         }
-        .navigationTitle("Export")
+        .navigationTitle(isMerged ? "Merge & Export" : "Export")
         .onAppear(perform: setup)
     }
 
@@ -31,11 +37,17 @@ struct ExportView: View {
             coordinator = ExportCoordinator(context: modelContext)
         }
         guard profile == nil else { return }
-        if let existing = session.exportProfile {
+        // A merged export has no single owning session to hang a persisted
+        // `ExportProfile` off (that relationship is 1:1 with a `Session` —
+        // docs/DATA_MODEL.md), so it always gets a fresh, transient one:
+        // there is nothing to re-open on a later re-export of the *same*
+        // merge, since "the same merge" isn't a thing that's saved anywhere
+        // (developer request, 2026-09-10 — v1 scope).
+        if !isMerged, let existing = sessions.first?.exportProfile {
             profile = existing
         } else {
-            let created = ExportProfile(session: session)
-            session.exportProfile = created
+            let created = ExportProfile(session: isMerged ? nil : sessions.first)
+            if !isMerged { sessions.first?.exportProfile = created }
             modelContext.insert(created)
             try? modelContext.save()
             profile = created
@@ -44,7 +56,7 @@ struct ExportView: View {
 }
 
 private struct ExportControls: View {
-    let session: Session
+    let sessions: [Session]
     @Bindable var profile: ExportProfile
     let coordinator: ExportCoordinator
 
@@ -54,14 +66,20 @@ private struct ExportControls: View {
         case idle, saving, saved, failed(String)
     }
 
-    private var finalizedClipCount: Int { session.orderedFinalizedClips.count }
+    private var finalizedClipCount: Int {
+        sessions.reduce(0) { $0 + $1.orderedFinalizedClips.count }
+    }
 
     private var estimatedDuration: Double {
-        ExportCoordinator.estimatedOutputDuration(session: session, profile: profile)
+        ExportCoordinator.estimatedOutputDuration(sessions: sessions, profile: profile)
     }
 
     private var isClamped: Bool {
-        ExportCoordinator.isClampedToFloor(session: session, profile: profile)
+        ExportCoordinator.isClampedToFloor(sessions: sessions, profile: profile)
+    }
+
+    private var anySourcesPurged: Bool {
+        sessions.contains { $0.sourcesPurgedAt != nil }
     }
 
     var body: some View {
@@ -145,12 +163,14 @@ private struct ExportControls: View {
             } else {
                 Button("Render") {
                     saveState = .idle
-                    Task { await coordinator.export(session: session, profile: profile) }
+                    Task { await coordinator.export(sessions: sessions, profile: profile) }
                 }
-                .disabled(finalizedClipCount == 0 || session.sourcesPurgedAt != nil)
+                .disabled(finalizedClipCount == 0 || anySourcesPurged)
 
-                if session.sourcesPurgedAt != nil {
-                    Text("This session's source clips were purged — it can't be re-exported.")
+                if anySourcesPurged {
+                    Text(sessions.count > 1
+                         ? "One of these sessions' source clips were purged — it can't be re-exported."
+                         : "This session's source clips were purged — it can't be re-exported.")
                         .font(.footnote)
                         .foregroundStyle(Color.slTextSecondary)
                 }

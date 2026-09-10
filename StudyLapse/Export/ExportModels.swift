@@ -88,6 +88,13 @@ enum ExportError: LocalizedError, Equatable {
     case compositionFailed(String)
     case renderFailed(String)
     case cancelled
+    /// A merge was requested across sessions whose `captureIntervalSeconds`
+    /// or `outputFrameRate` don't all match. Mixing them would need each
+    /// source clip individually speed-compensated to a common rate before
+    /// concatenation — out of scope for v1 (developer request, 2026-09-10);
+    /// the merge picker disables incompatible sessions so this is a backstop,
+    /// not the primary guard.
+    case mismatchedCaptureSettings
 
     var errorDescription: String? {
         switch self {
@@ -103,6 +110,8 @@ enum ExportError: LocalizedError, Equatable {
             return "The export failed to render: \(detail)"
         case .cancelled:
             return "Export cancelled."
+        case .mismatchedCaptureSettings:
+            return "These sessions were recorded with different capture settings and can't be merged."
         }
     }
 }
@@ -122,9 +131,21 @@ struct ExportPlan: Sendable {
         let frameCount: Int
     }
 
-    let sessionID: UUID
-    let sessionStartedAt: Date
-    let dayKey: String
+    /// This export's own identity, generated fresh per export call — used
+    /// only to key the output file path (`AVFoundationSessionExporter
+    /// .outputURL`), independent of which session(s) contributed clips.
+    let exportID: UUID
+    /// The single owning session, for a normal export. Nil for a merged
+    /// export (developer request, 2026-09-10) — there the clips came from
+    /// `sourceSessionIDs.count > 1` sessions and none of them owns the
+    /// result (see `ExportRecord.mergedSessionIDs`).
+    let primarySessionID: UUID?
+    /// Every contributing session's id, chronological — one entry for a
+    /// normal export, two or more for a merge.
+    let sourceSessionIDs: [UUID]
+    let sessionStartedAt: Date      // earliest contributing session's start
+    let sessionEndedAt: Date?       // latest contributing session's end
+    let dayKey: String              // earliest contributing session's dayKey
     let clips: [Clip]
     let captureIntervalSeconds: Double
     let outputFrameRate: Int32
@@ -139,6 +160,8 @@ struct ExportPlan: Sendable {
     let includeIntroCard: Bool
     let includeOutroCard: Bool
     let tagNames: [String]
+
+    var isMerged: Bool { sourceSessionIDs.count > 1 }
 
     /// The exact duration the exported file will have, after the minimum-speed
     /// floor is applied. Both the UI and the composition scale read this.

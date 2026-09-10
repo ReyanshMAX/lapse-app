@@ -27,21 +27,27 @@ final class ExportCoordinator {
     /// Live estimate for the export UI — the exact duration the file will have,
     /// including the minimum-speed clamp. The same value the composition is
     /// scaled to (`TimeAxis.outputDuration`).
-    static func estimatedOutputDuration(session: Session, profile: ExportProfile) -> Double {
-        let total = session.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration }
+    static func estimatedOutputDuration(sessions: [Session], profile: ExportProfile) -> Double {
+        guard let first = sessions.first else { return 0 }
+        let total = sessions.reduce(0.0) { $0 + $1.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration } }
         return TimeAxis.outputDuration(mode: Self.speedMode(profile),
                                        totalStudySeconds: total,
-                                       interval: session.captureIntervalSeconds,
-                                       fps: session.outputFrameRate)
+                                       interval: first.captureIntervalSeconds,
+                                       fps: first.outputFrameRate)
+    }
+
+    static func estimatedOutputDuration(session: Session, profile: ExportProfile) -> Double {
+        estimatedOutputDuration(sessions: [session], profile: profile)
     }
 
     /// True when the requested net speed is slower than the minimum-speed floor
     /// and the output has been clamped (so it's longer than asked for) —
     /// docs/DATA_MODEL.md.
-    static func isClampedToFloor(session: Session, profile: ExportProfile) -> Bool {
-        let interval = session.captureIntervalSeconds
-        let fps = session.outputFrameRate
-        let total = session.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration }
+    static func isClampedToFloor(sessions: [Session], profile: ExportProfile) -> Bool {
+        guard let first = sessions.first else { return false }
+        let interval = first.captureIntervalSeconds
+        let fps = first.outputFrameRate
+        let total = sessions.reduce(0.0) { $0 + $1.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration } }
         guard total > 0 else { return false }
         let floor = TimeAxis.minimumSpeed(interval: interval, fps: fps)
 
@@ -56,7 +62,18 @@ final class ExportCoordinator {
         return requestedSpeed < floor - 1e-6
     }
 
+    static func isClampedToFloor(session: Session, profile: ExportProfile) -> Bool {
+        isClampedToFloor(sessions: [session], profile: profile)
+    }
+
     func export(session: Session, profile: ExportProfile) async {
+        await export(sessions: [session], profile: profile)
+    }
+
+    /// One or more sessions, chronological. A single session behaves exactly
+    /// as before; two or more produce a merged export with no owning session
+    /// (`ExportRecord.mergedSessionIDs` — developer request, 2026-09-10).
+    func export(sessions: [Session], profile: ExportProfile) async {
         guard !isExporting else { return }
         isExporting = true
         progress = 0
@@ -64,7 +81,7 @@ final class ExportCoordinator {
         defer { isExporting = false }
 
         do {
-            let plan = try Self.buildPlan(session: session, profile: profile)
+            let plan = try Self.buildPlan(sessions: sessions, profile: profile)
             let url = try await exporter.export(
                 ExportRequest(plan: plan),
                 progress: { [weak self] value in self?.progress = value })
@@ -72,7 +89,8 @@ final class ExportCoordinator {
             let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
             let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
             let record = ExportRecord(
-                session: session,
+                session: plan.isMerged ? nil : sessions.first,
+                mergedSessionIDs: plan.isMerged ? plan.sourceSessionIDs : nil,
                 relativePath: StorageLocator.relativePath(for: url),
                 durationSeconds: plan.outputDuration,
                 fileSizeBytes: size)
@@ -115,8 +133,24 @@ final class ExportCoordinator {
     // MARK: Plan construction (main actor — reads @Model state)
 
     static func buildPlan(session: Session, profile: ExportProfile) throws -> ExportPlan {
-        guard session.sourcesPurgedAt == nil else { throw ExportError.sourcesPurged }
-        let clips = session.orderedFinalizedClips.filter { $0.frameCount > 0 }
+        try buildPlan(sessions: [session], profile: profile)
+    }
+
+    /// `sessions` need not already be in order — sorted here by `startedAt`
+    /// so a merge always concatenates chronologically regardless of pick
+    /// order in the merge picker.
+    static func buildPlan(sessions: [Session], profile: ExportProfile) throws -> ExportPlan {
+        guard !sessions.isEmpty else { throw ExportError.noFinalizedClips }
+        for session in sessions {
+            guard session.sourcesPurgedAt == nil else { throw ExportError.sourcesPurged }
+        }
+        let ordered = sessions.sorted { $0.startedAt < $1.startedAt }
+        if Set(ordered.map(\.captureIntervalSeconds)).count > 1
+            || Set(ordered.map(\.outputFrameRate)).count > 1 {
+            throw ExportError.mismatchedCaptureSettings
+        }
+
+        let clips = ordered.flatMap { $0.orderedFinalizedClips.filter { $0.frameCount > 0 } }
         guard !clips.isEmpty else { throw ExportError.noFinalizedClips }
 
         let planClips = clips.map { clip in
@@ -124,15 +158,19 @@ final class ExportCoordinator {
                             frameCount: clip.frameCount)
         }
         let total = clips.reduce(0.0) { $0 + $1.studyDuration }
-        let tagNames = Array(Set(session.tagRanges.flatMap(\.tagNames))).sorted()
+        let tagNames = Array(Set(ordered.flatMap { $0.tagRanges.flatMap(\.tagNames) })).sorted()
+        let first = ordered[0]
 
         return ExportPlan(
-            sessionID: session.id,
-            sessionStartedAt: session.startedAt,
-            dayKey: session.dayKey,
+            exportID: UUID(),
+            primarySessionID: ordered.count == 1 ? first.id : nil,
+            sourceSessionIDs: ordered.map(\.id),
+            sessionStartedAt: first.startedAt,
+            sessionEndedAt: ordered.last?.endedAt,
+            dayKey: first.dayKey,
             clips: planClips,
-            captureIntervalSeconds: session.captureIntervalSeconds,
-            outputFrameRate: session.outputFrameRate,
+            captureIntervalSeconds: first.captureIntervalSeconds,
+            outputFrameRate: first.outputFrameRate,
             totalStudySeconds: total,
             speedMode: speedMode(profile),
             aspect: AspectPreset(raw: profile.aspectRaw),

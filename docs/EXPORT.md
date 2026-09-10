@@ -2,16 +2,30 @@
 
 ## Overview
 
-Export concatenates a session's finalized clips into an `AVMutableComposition`,
-scales the result to the requested speed, burns in an animated study timer and
-optional intro/outro cards via `AVVideoCompositionCoreAnimationTool`, adds a
-silent audio track, and writes a finished file ready to post. This is the
-app's differentiating feature — everything else is a tracker.
+Export concatenates one or more sessions' finalized clips into an
+`AVMutableComposition`, scales the result to the requested speed, burns in an
+animated study timer and optional intro/outro cards via
+`AVVideoCompositionCoreAnimationTool`, adds a silent audio track, and writes a
+finished file ready to post. This is the app's differentiating feature —
+everything else is a tracker.
+
+Almost always it's one session. "Merge Sessions" (Library toolbar, developer
+request 2026-09-10 — "merge multiple study sessions at export... not merge the
+source clips") feeds `ExportCoordinator.buildPlan(sessions:profile:)` more
+than one, in which case their clips are concatenated chronologically into the
+same composition — see "Merging sessions" below. Nothing about `Session`/
+`Clip` storage changes; only the export-time plan draws from more than one
+session.
 
 ## Non-goals
 
 - No voiceover in v1 — shipped in Phase 6, removed 2026-09-10 (D-030)
 - No subrange export in v1 — whole session only (D-019)
+- No merging sessions recorded at different capture intervals or frame
+  rates — every session in a merge must share `captureIntervalSeconds` and
+  `outputFrameRate`, or `buildPlan` throws `ExportError.mismatchedCaptureSettings`.
+  Mixing them would need each source clip individually speed-compensated to a
+  common rate before concatenation; out of scope for v1 (2026-09-10)
 - No transitions, filters, colour grading, music, or captions
 - No re-encoding of source clips outside of export
 - No background export in v1; the export screen stays foregrounded with progress
@@ -34,7 +48,8 @@ struct ExportPlan: Sendable {            // built on the main actor by ExportCoo
     let overlayCorner: OverlayCorner
     let includeIntroCard: Bool
     let includeOutroCard: Bool
-    // sessionID / sessionStartedAt / dayKey / tagNames …
+    // exportID / primarySessionID / sourceSessionIDs / sessionStartedAt /
+    // sessionEndedAt / dayKey / tagNames …
     var outputDuration: Double            // == TimeAxis.outputDuration(...)
 }
 
@@ -65,10 +80,14 @@ strings map to the `AspectPreset` / `OverlayStyle` / `OverlayCorner` enums in
 
 Stages, in order:
 
-1. **Compose.** New `AVMutableComposition`. One video track. For each finalized
-   clip ordered by `index`, `insertTimeRange(clip.fullRange, at: cursor)`.
-   Advance `cursor` by the clip's duration. No gaps — pauses are already absent
-   because paused time was never recorded.
+1. **Compose.** New `AVMutableComposition`. One video track. For each clip in
+   `plan.clips` — already flattened, in final order, by
+   `ExportCoordinator.buildPlan` (one session's clips by `index`; a merge's
+   clips session-by-session in `startedAt` order, "Merging sessions" below) —
+   `insertTimeRange(clip.fullRange, at: cursor)`. Advance `cursor` by the
+   clip's duration. No gaps within a session — pauses are already absent
+   because paused time was never recorded; a merge's sessions butt directly
+   against each other the same way, with no transition (a Non-goal above).
 2. **Scale.** Compute the output length once, via
    `TimeAxis.outputDuration(mode:totalStudySeconds:interval:fps:)` in
    StudyLapseCore (which clamps to the minimum-speed floor and is the *single*
@@ -97,7 +116,45 @@ Stages, in order:
    Phase 1). `videoComposition` set, `outputFileType = .mov`. `exportAsynchronously`
    then poll `.status`/`.progress` from the main actor between `Task.sleep`s.
 7. **Record.** Insert an `ExportRecord`, write the file into the session's
-   `exports/` directory, then present the share sheet.
+   `exports/` directory (or `merged-exports/` for a merge — "Merging
+   sessions" below), then present the share sheet.
+
+## Merging sessions
+
+Added 2026-09-10 (developer request — "merge multiple study sessions at
+export... not merge the source clips"). `ExportCoordinator
+.buildPlan(sessions:profile:)` generalizes the single-session
+`buildPlan(session:profile:)` (which is now just `buildPlan(sessions: [session],
+...)`):
+
+- `sessions` is sorted by `startedAt` first, so pick order in the Library
+  "Merge Sessions" picker never matters — the output is always chronological.
+- Every session must have the same `captureIntervalSeconds` and
+  `outputFrameRate`, checked before anything else — see the Non-goal above.
+  The picker disables incompatible sessions so this is a backstop, not the
+  primary guard.
+- Each session's `orderedFinalizedClips` are concatenated in turn — stage 1
+  above doesn't know or care where a clip's session boundary falls, since
+  `ExportPlan.clips` is already a flat list by the time it gets there. The
+  study-time axis, minimum-speed floor, and timer-overlay math (docs/DATA_MODEL.md)
+  are all still just "duration of these clips at this interval/fps" — merging
+  sessions doesn't introduce a second axis, it just widens the clip list one
+  math already handles.
+- `tagNames` for the intro card is the union across every merged session's
+  `TagRange`s (same dedup `buildPlan` already did for one session).
+- `ExportPlan.primarySessionID` is nil and `sourceSessionIDs` holds every
+  contributing session's id — `ExportCoordinator.export(sessions:profile:)`
+  reads `plan.isMerged` to decide whether the resulting `ExportRecord` gets
+  `session` (one) or `mergedSessionIDs` (2+) set (docs/DATA_MODEL.md).
+- The `ExportProfile` for a merge is always a fresh, transient one (not
+  attached to any session — that relationship is 1:1 with a `Session`) rather
+  than reused across repeat merges of the same sessions, since "the same
+  merge" isn't itself a saved concept in v1.
+- Intro-card text becomes a date range + session count instead of a single
+  date when `plan.isMerged` (`AVFoundationSessionExporter.dateText`); the
+  timer overlay and outro card are unchanged — they only ever read
+  `totalStudySeconds`/`outputDuration`, which already account for every
+  merged session's clips.
 
 ## Aspect presets
 

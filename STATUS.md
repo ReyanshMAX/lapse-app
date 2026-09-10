@@ -548,6 +548,70 @@ Not blocking, but constraining while there is no Mac:
 
 ## Deviations from spec
 
+- 2026-09-10 (developer request — "add a feature to merge multiple study
+  sessions at export... not merge the source clips"): **Merge Sessions.** New
+  Library toolbar entry (`MergeSessionsView`) multi-selects finished,
+  re-exportable sessions with Today/This-Week/All quick filters (reusing the
+  same `dayCutoffHour`/`Stats.recentDayKeys` windows Home and Stats already
+  compute), then pushes the existing `ExportView` with all of them.
+  `Session`/`Clip` storage is untouched — this only widens what
+  `ExportCoordinator` can build a plan from.
+  - `ExportCoordinator.buildPlan(sessions:profile:)` generalizes
+    `buildPlan(session:profile:)` (now a one-line wrapper): sorts sessions by
+    `startedAt`, throws the new `ExportError.mismatchedCaptureSettings` if
+    they don't all share `captureIntervalSeconds`/`outputFrameRate` (mixing
+    would need per-clip speed compensation — out of scope, v1 non-goal,
+    docs/EXPORT.md), then concatenates `orderedFinalizedClips` across all of
+    them and unions their `tagNames`. `estimatedOutputDuration`/
+    `isClampedToFloor`/`export` all gained matching `sessions:` overloads
+    with `session:` wrappers preserved, so every existing call site compiles
+    unchanged. `ExportPlan.sessionID` split into `exportID` (this export's own
+    identity, for the output path) + `primarySessionID` (nil when merged) +
+    `sourceSessionIDs` (1 entry normally, 2+ merged) + `sessionEndedAt`
+    (latest contributing session's end, for the merged intro-card date
+    range).
+  - `ExportRecord` gained `mergedSessionIDs: [UUID]?` (docs/DATA_MODEL.md) —
+    `session` and it are mutually exclusive. Deliberately **no**
+    `@Relationship` from a merged export to its source sessions: it holds
+    only their ids, so deleting one of them doesn't cascade-delete an export
+    that also contains other sessions' footage — same "an export survives a
+    source purge" rule a normal export already gets. Stored at a new sibling
+    `merged-exports/<uuid>.mov` (`AVFoundationSessionExporter.outputURL`,
+    docs/DATA_MODEL.md On-disk layout) since there's no session directory to
+    nest under.
+  - `ExportView` generalized from `let session: Session` to `let sessions:
+    [Session]`, with an `init(session:)` convenience so both existing call
+    sites (Tagging's "Continue to Export", Library's re-export) compile
+    unchanged. A merge's `ExportProfile` is always fresh and transient (not
+    attached to any session — that relationship is 1:1 with one, per
+    docs/DATA_MODEL.md) rather than reused across repeat merges of the same
+    sessions; "the same merge" isn't itself a saved concept in v1.
+  - Library gained a "Merged" section (above the session grid, `@Query
+    filter: #Predicate<ExportRecord> { $0.session == nil }`) showing each
+    merge's session count, date, size, and Preview/Share/Delete — mirrors
+    `SessionDetailView`'s existing export-row shape. Handles the edge case
+    where every contributing session is later deleted but the merged export
+    survives (Library's empty state now checks both queries, not just
+    `finishedSessions`).
+  - Tests (`ExportTests.swift`, `simulator` job):
+    `testMergedPlanConcatenatesSessionsChronologically` (out-of-order input
+    sorted, clip count = sum, `tagNames` union, `totalStudySeconds` sum, a
+    real `prepare()` scales to the combined duration),
+    `testSingleSessionPlanIsNotMarkedMerged` (the one-session path through
+    `buildPlan(sessions:)` is bit-for-bit the old single-session shape),
+    `testMismatchedCaptureSettingsRefusesToMerge` (differing interval *and*
+    differing fps each throw the typed error). `makeSession` gained optional
+    `startedAt`/`dayKey` params (defaulted to the existing hardcoded values)
+    so two independent fixture sessions can be built.
+  - docs/EXPORT.md (new "Merging sessions" section + Non-goal),
+    docs/DATA_MODEL.md (`ExportRecord` fields + on-disk layout + Notes),
+    docs/UI.md §6 (Merge Sessions picker + Merged section), docs/TESTING.md
+    updated same change. No BUILD.md phase — same ad hoc-feature precedent
+    as Projects/Recap/Notes/Goals (2026-09-09): logged here, not slotted into
+    the 0–10 phase plan.
+  - Not yet confirmed on device — no Mac access this session (CLAUDE.md); CI
+    proves the plan/composition math, not how the picker or the Merged
+    section actually read on a phone.
 - 2026-09-10 (developer request — "remove the voiceover feature altogether
   for now"): **voiceover deleted entirely, not just hidden.** Phase 6 shipped
   and was signed off 2026-08-27; the developer asked for it gone. Removed:

@@ -41,7 +41,8 @@ final class AVFoundationSessionExporter: SessionExporter {
         isCancelled = false
         let prepared = try await prepare(request.plan)
         defer { prepared.silentAudioURL.map { try? FileManager.default.removeItem(at: $0) } }
-        return try await render(prepared, sessionID: request.plan.sessionID, progress: progress)
+        return try await render(prepared, exportID: request.plan.exportID,
+                                primarySessionID: request.plan.primarySessionID, progress: progress)
     }
 
     func prepare(_ plan: ExportPlan) async throws -> Prepared {
@@ -150,12 +151,12 @@ final class AVFoundationSessionExporter: SessionExporter {
 
     // MARK: Render
 
-    private func render(_ prepared: Prepared, sessionID: UUID,
+    private func render(_ prepared: Prepared, exportID: UUID, primarySessionID: UUID?,
                         progress: @escaping (Double) -> Void) async throws -> URL {
         prepared.videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
             postProcessingAsVideoLayer: prepared.overlay.video, in: prepared.overlay.parent)
 
-        let outURL = try Self.outputURL(for: sessionID)
+        let outURL = try Self.outputURL(exportID: exportID, primarySessionID: primarySessionID)
 
         // HEVC first (docs/EXPORT.md); fall back to H.264 if the render fails —
         // the simulator's software HEVC encoder is unreliable (STATUS.md Phase 1
@@ -210,8 +211,13 @@ final class AVFoundationSessionExporter: SessionExporter {
         if isCancelled { throw ExportError.cancelled }
     }
 
-    private static func outputURL(for sessionID: UUID) throws -> URL {
-        let relative = "sessions/\(sessionID.uuidString)/exports/\(UUID().uuidString).mov"
+    /// `primarySessionID` non-nil (a normal export) keeps the existing
+    /// `sessions/<id>/exports/<uuid>.mov` layout; nil (a merge, no owning
+    /// session — docs/DATA_MODEL.md On-disk layout) writes to a sibling
+    /// `merged-exports/<uuid>.mov` instead.
+    private static func outputURL(exportID: UUID, primarySessionID: UUID?) throws -> URL {
+        let relative = primarySessionID.map { "sessions/\($0.uuidString)/exports/\(exportID.uuidString).mov" }
+            ?? "merged-exports/\(exportID.uuidString).mov"
         let url = StorageLocator.url(forRelativePath: relative)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
@@ -294,10 +300,23 @@ final class AVFoundationSessionExporter: SessionExporter {
     }
 
     private static func introText(_ plan: ExportPlan) -> String {
-        let date = plan.sessionStartedAt.formatted(date: .abbreviated, time: .omitted)
+        let date = Self.dateText(plan)
         let study = Formatters.studyTime(plan.totalStudySeconds)
         let tags = plan.tagNames.isEmpty ? "" : "\n" + plan.tagNames.joined(separator: " · ")
         return "\(date)\n\(study)\(tags)"
+    }
+
+    /// A single date for a normal export; a start–end range plus the session
+    /// count for a merge (developer request, 2026-09-10) — `sessionEndedAt`
+    /// is only nil for a still-open session, which can't reach export
+    /// (`ExportCoordinator.buildPlan` requires finalized clips), so this
+    /// falls back to the start date alone only defensively.
+    private static func dateText(_ plan: ExportPlan) -> String {
+        let start = plan.sessionStartedAt.formatted(date: .abbreviated, time: .omitted)
+        guard plan.isMerged, let end = plan.sessionEndedAt else { return start }
+        let endText = end.formatted(date: .abbreviated, time: .omitted)
+        let range = start == endText ? start : "\(start) – \(endText)"
+        return "\(range) · \(plan.sourceSessionIDs.count) sessions"
     }
 
     private static func outroText(_ plan: ExportPlan) -> String {

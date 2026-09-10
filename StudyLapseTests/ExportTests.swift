@@ -39,9 +39,11 @@ final class ExportTests: XCTestCase {
                              framesPerClip: Int,
                              interval: Double = 0.1,
                              fps: Int32 = 30,
-                             finalizeLast: Bool = true) async throws -> Session {
-        let session = Session(startedAt: Date(timeIntervalSince1970: 1_756_000_000),
-                              dayKey: "2026-08-24",
+                             finalizeLast: Bool = true,
+                             startedAt: Date = Date(timeIntervalSince1970: 1_756_000_000),
+                             dayKey: String = "2026-08-24") async throws -> Session {
+        let session = Session(startedAt: startedAt,
+                              dayKey: dayKey,
                               captureIntervalSeconds: interval,
                               outputFrameRate: fps)
         session.status = .ended
@@ -354,7 +356,8 @@ final class ExportTests: XCTestCase {
         }
 
         let emptyPlan = ExportPlan(
-            sessionID: session.id, sessionStartedAt: session.startedAt, dayKey: session.dayKey,
+            exportID: UUID(), primarySessionID: session.id, sourceSessionIDs: [session.id],
+            sessionStartedAt: session.startedAt, sessionEndedAt: session.endedAt, dayKey: session.dayKey,
             clips: [], captureIntervalSeconds: 3, outputFrameRate: 30, totalStudySeconds: 0,
             speedMode: .multiplier(100), aspect: .portrait9x16, rotation: .none, isMirrored: false,
             overlayStyle: .minimal,
@@ -393,6 +396,69 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(plan.clips.count, 2)
         XCTAssertGreaterThan(plan.totalStudySeconds, 0)
         XCTAssertEqual(plan.aspect, .portrait9x16)
+    }
+
+    // MARK: Merge Sessions (developer request, 2026-09-10)
+
+    /// Two sessions merged concatenate clips from both, chronologically, into
+    /// one plan with no single owning session.
+    func testMergedPlanConcatenatesSessionsChronologically() async throws {
+        let later = try await makeSession(clipCount: 2, framesPerClip: 60,
+                                          startedAt: Date(timeIntervalSince1970: 2_000_000_000),
+                                          dayKey: "2026-09-10")
+        let earlier = try await makeSession(clipCount: 3, framesPerClip: 60,
+                                            startedAt: Date(timeIntervalSince1970: 1_000_000_000),
+                                            dayKey: "2026-09-01")
+        context.insert(TagRange(session: earlier, startStudySeconds: 0,
+                                endStudySeconds: 1, tagNames: ["math"]))
+        context.insert(TagRange(session: later, startStudySeconds: 0,
+                                endStudySeconds: 1, tagNames: ["physics"]))
+        try context.save()
+
+        // Passed out of order — the plan must still sort by startedAt.
+        let plan = try ExportCoordinator.buildPlan(sessions: [later, earlier], profile: profile(earlier))
+
+        XCTAssertTrue(plan.isMerged)
+        XCTAssertNil(plan.primarySessionID)
+        XCTAssertEqual(plan.sourceSessionIDs, [earlier.id, later.id])
+        XCTAssertEqual(plan.dayKey, earlier.dayKey, "the earliest session's dayKey")
+        XCTAssertEqual(plan.clips.count, 5, "3 clips from the earlier session + 2 from the later one")
+        XCTAssertEqual(plan.tagNames, ["math", "physics"])
+
+        let earlierTotal = earlier.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration }
+        let laterTotal = later.orderedFinalizedClips.reduce(0.0) { $0 + $1.studyDuration }
+        XCTAssertEqual(plan.totalStudySeconds, earlierTotal + laterTotal, accuracy: 1e-6)
+
+        let prepared = try await AVFoundationSessionExporter().prepare(plan)
+        if let url = prepared.silentAudioURL { scratchURLs.append(url) }
+        XCTAssertEqual(prepared.composition.duration.seconds, plan.outputDuration, accuracy: 0.05,
+                       "a merged composition scales to the combined output duration same as a single session's")
+    }
+
+    /// A single session passed through `buildPlan(sessions:)` behaves exactly
+    /// like `buildPlan(session:)` — merging is additive, not a separate path.
+    func testSingleSessionPlanIsNotMarkedMerged() async throws {
+        let session = try await makeSession(clipCount: 2, framesPerClip: 60)
+        let plan = try ExportCoordinator.buildPlan(sessions: [session], profile: profile(session))
+        XCTAssertFalse(plan.isMerged)
+        XCTAssertEqual(plan.primarySessionID, session.id)
+        XCTAssertEqual(plan.sourceSessionIDs, [session.id])
+    }
+
+    /// Sessions recorded at different capture intervals or frame rates can't
+    /// be merged — mixing them would need per-clip speed compensation, which
+    /// is out of scope for v1 (docs/EXPORT.md).
+    func testMismatchedCaptureSettingsRefusesToMerge() async throws {
+        let a = try await makeSession(clipCount: 1, framesPerClip: 60, interval: 0.1, fps: 30)
+        let b = try await makeSession(clipCount: 1, framesPerClip: 60, interval: 0.2, fps: 30)
+        XCTAssertThrowsError(try ExportCoordinator.buildPlan(sessions: [a, b], profile: profile(a))) {
+            XCTAssertEqual($0 as? ExportError, .mismatchedCaptureSettings)
+        }
+
+        let c = try await makeSession(clipCount: 1, framesPerClip: 60, interval: 0.1, fps: 24)
+        XCTAssertThrowsError(try ExportCoordinator.buildPlan(sessions: [a, c], profile: profile(a))) {
+            XCTAssertEqual($0 as? ExportError, .mismatchedCaptureSettings)
+        }
     }
 
     #if !targetEnvironment(simulator)
