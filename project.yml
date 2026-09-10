@@ -31,6 +31,7 @@ targets:
         PRODUCT_NAME: StudyLapse
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # A checked-in Info.plist, not GENERATE_INFOPLIST_FILE — this target
         # needs CFBundleURLTypes (the Resume deep link) and
         # NSSupportsLiveActivities, which are an array/boolean a

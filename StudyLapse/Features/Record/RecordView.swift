@@ -308,7 +308,7 @@ struct RecordView: View {
     @ViewBuilder
     private var permissionPrime: some View {
         VStack(spacing: DesignTokens.Spacing.lg) {
-            Text("StudyLapse needs camera access to record your study timelapse. Video stays on this device and is never uploaded.")
+            Text("Hourglass needs camera access to record your study timelapse. Video stays on this device and is never uploaded.")
                 .foregroundStyle(Color.slTextPrimary)
                 .multilineTextAlignment(.center)
             Button("Enable Camera") {

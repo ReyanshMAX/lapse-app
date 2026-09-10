@@ -3,14 +3,16 @@
 Unresolved. Do not resolve these silently — ask, then move the answer to
 DECISIONS.md and delete the entry here.
 
-## Q-001: App name and bundle identifier
+## Q-001: Bundle identifier
 
 - **Blocking:** no — needed before Phase 9, but the bundle ID is baked into the
   project at Phase 1 and changing it later invalidates provisioning
-- **Options:** "StudyLapse" is a working title used throughout this suite. It is
-  descriptive and almost certainly taken or close to taken on the App Store
-- **Depends on it:** bundle identifier, App Store listing, `os_log` subsystem,
-  Live Activity display name, every occurrence of the name in these docs
+- **Options:** `com.placeholder.StudyLapse` is a placeholder used throughout
+  this suite's build config. The shown app name is now "Hourglass" (D-029),
+  but the bundle identifier, `PRODUCT_NAME`/Xcode target name, and the
+  `studylapse://` URL scheme still carry the old working title
+- **Depends on it:** App Store listing, `os_log` subsystem, Live Activity
+  target's bundle ID, the Resume deep link scheme
 
 ## Q-002: What exactly the v2 focus analysis reports
 

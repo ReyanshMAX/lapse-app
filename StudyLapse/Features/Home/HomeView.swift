@@ -79,7 +79,7 @@ struct HomeView: View {
             }
             .padding()
         }
-        .navigationTitle("StudyLapse")
+        .navigationTitle("Hourglass")
         .screenBackground()
         .sheet(isPresented: $goalEditorPresented) {
             GoalEditorSheet(goalSeconds: $dailyGoalSeconds)

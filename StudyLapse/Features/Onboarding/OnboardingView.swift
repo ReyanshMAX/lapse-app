@@ -18,7 +18,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Color.slAccent)
 
             VStack(spacing: DesignTokens.Spacing.sm) {
-                Text("Welcome to StudyLapse")
+                Text("Welcome to Hourglass")
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(Color.slTextPrimary)
                     .multilineTextAlignment(.center)

@@ -57,7 +57,7 @@ private struct LockScreenView: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("StudyLapse — Paused")
+                Text("Hourglass — Paused")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(Formatters.studyTime(context.state.studySeconds))

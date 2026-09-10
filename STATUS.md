@@ -591,12 +591,33 @@ Not blocking, but constraining while there is no Mac:
 - Three apps per free Apple ID — the widget extension (a second bundle ID)
   now exists as of Phase 7; the sideloaded build uses two of the three slots.
   Worth knowing before adding anything else that needs its own bundle ID.
-- **Q-001** app name and bundle identifier — does not block Phase 0 or the
-  sideload path (the sideloader rewrites the bundle ID), but must be settled
-  before real provisioning is set up on a Mac
+- **Q-001** bundle identifier — does not block Phase 0 or the sideload path
+  (the sideloader rewrites the bundle ID), but must be settled before real
+  provisioning is set up on a Mac. The app name half is resolved: the app now
+  shows as "Hourglass" (D-029, 2026-09-10)
 
 ## Deviations from spec
 
+- 2026-09-10 (developer request — "make the app show the app name as
+  Hourglass and make the hourglass-logo.png asset I added the app icon and
+  logo"): **app now displays as "Hourglass"** — `CFBundleDisplayName` set in
+  `StudyLapse/Info.plist`, plus the two remaining hardcoded "StudyLapse"
+  user-facing strings updated (`OnboardingView`'s welcome text, `HomeView`'s
+  navigation title, `RecordView`'s camera-permission prime text, the
+  `NSCameraUsageDescription` system-permission string, and the Live Activity
+  widget's "Paused" label). **App icon** is the developer-supplied
+  `hourglass-logo.png`, resized to the required 1024×1024 and flattened to
+  RGB (source was 805×805 RGBA, fully opaque) into
+  `StudyLapse/Assets.xcassets/AppIcon.appiconset/`, wired via
+  `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` in `project.yml`. Resolves
+  the display-name half of Q-001 → D-029. Left unchanged, out of scope for
+  this request: `PRODUCT_NAME`/Xcode target name, the
+  `com.placeholder.StudyLapse` bundle identifier and the Live Activity
+  extension's derived bundle ID, the `studylapse://` deep-link scheme, and
+  `StorageLocator`'s on-disk `StudyLapse/` folder name — renaming any of
+  those is a bigger, separate change than an app name/icon swap and Q-001
+  (narrowed to just the bundle identifier now) already flags the bundle ID
+  as risky to change once baked in.
 - 2026-09-09 (developer request — ideation list, "multiple study projects as
   first-class objects"): **a new `Project` entity, assignable to a session
   from Tagging or the Library detail sheet, with per-project totals on
